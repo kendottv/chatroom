@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}計算機概論 - 出題{% endblock %}
+
+{% block content %}
+    {% if user.is_authenticated and user.is_staff %}
+        <div class="post">
+            <h2>出題區</h2>
+            <form method="post" action="{% url 'upload_question' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="title">題目標題:</label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="question">題目內容:</label>
+                    <textarea name="question" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="image">上傳圖片:</label>
+                    <input type="file" name="image" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="max_attempts">最大提問次數:</label>
+                    <input type="number" name="max_attempts" min="1" value="1" required>
+                </div>
+                <button type="submit">提交題目</button>
+            </form>
+            {% if messages %}
+                {% for message in messages %}
+                    <p class="message {{ message.tags }}">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="post">
+            <h3>無權限訪問</h3>
+            <p>此頁面僅限管理員訪問。請聯繫管理員以獲取權限。</p>
+        </div>
+    {% endif %}
+{% endblock %}

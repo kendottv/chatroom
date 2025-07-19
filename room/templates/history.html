@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}計算機概論 - 歷史{% endblock %}
+
+{% block content %}
+    <div class="post">
+        <h3>歷史記錄</h3>
+        {% if history_records %}
+            <ul>
+            {% for record in history_records %}
+                <li>
+                    {{ record.created_at|date:"Y-m-d H:i" }} - 
+                    {{ record.user.username }} - 
+                    {{ record.action|default:"互動" }}: 
+                    {{ record.question|truncatechars:50 }} 
+                    {% if record.response %} - 回覆: {{ record.response|truncatechars:50 }}{% endif %}
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>無歷史記錄。</p>
+        {% endif %}
+    </div>
+{% endblock %}

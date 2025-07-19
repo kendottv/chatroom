@@ -1,0 +1,54 @@
+body.dark-mode {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+body.dark-mode .sidebar {
+    background-color: #1c1c1c;
+    color: #e0e0e0;
+}
+
+body.dark-mode .sidebar a {
+    color: #e0e0e0;
+}
+
+body.dark-mode .sidebar a:hover {
+    background-color: #333;
+}
+
+body.dark-mode header {
+    background-color: #1c1c1c;
+    color: #e0e0e0;
+}
+
+body.dark-mode .navbar button {
+    background-color: #444;
+}
+
+body.dark-mode .navbar button:hover {
+    background-color: #666;
+}
+
+body.dark-mode .post {
+    background-color: #222;
+    color: #ddd;
+    box-shadow: none;
+}
+
+body.dark-mode .footer {
+    color: #999;
+}
+
+body.dark-mode textarea {
+    background-color: #222;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+body.dark-mode button[type="submit"] {
+    background-color: #3a5f8a;
+}
+
+body.dark-mode button[type="submit"]:hover {
+    background-color: #4a6f9a;
+}

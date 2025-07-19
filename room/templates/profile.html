@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}計算機概論 - 個人資料{% endblock %}
+
+{% block content %}
+    <div class="post">
+        <h3>個人資料</h3>
+        {% if user.is_authenticated %}
+            <p>姓名: {{ user.get_full_name|default:user.username }}</p>
+            <p>學號: {{ user.student_id|default:"未設定學號" }}</p>
+            <p>頭像: {% if user.avatar %}<img src="{{ user.avatar.url }}" alt="頭像" style="width: 100px;">{% else %}無頭像{% endif %}</p>
+        {% else %}
+            <p>請登入以查看您的個人資料。</p>
+        {% endif %}
+    </div>
+{% endblock %}
