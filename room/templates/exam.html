@@ -1,46 +1,58 @@
 {% extends 'base.html' %}
 
-{% block title %}計算機概論 - 考試{% endblock %}
+{% block title %}考試{% endblock %}
+
+{% block extra_head %}
+    <style>
+        .question { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        label { font-weight: bold; }
+        input, textarea { margin: 5px 0; padding: 5px; }
+        button { padding: 10px 20px; background-color: #008CBA; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #007B9A; }
+        img { max-width: 300px; }
+        .end-button { background-color: #f44336; margin-left: 10px; }
+        .end-button:hover { background-color: #da190b; }
+    </style>
+{% endblock %}
 
 {% block content %}
-<div class="content" style="display: flex; justify-content: space-between;">
-    <!-- 左側：AI 問答 -->
-    <div style="width: 45%;">
-        <h2>AI 問答</h2>
-        <form method="post" action="{% url 'ask_ai' %}" id="ai-form">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="prompt">輸入您的問題:</label>
-                <textarea name="prompt" placeholder="輸入您的問題..." rows="4" required></textarea>
+    <h2>考試</h2>
+    {% if messages %}
+        {% for message in messages %}
+            <p{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+    {% if exam_questions %}
+        {% for question in exam_questions %}
+            <div class="question">
+                <h3>{{ question.title }}</h3>
+                <p>{{ question.content }}</p>
+                {% if question.image %}
+                    <img src="{{ question.image.url }}" alt="題目圖片">
+                {% endif %}
+                <form method="post" action="{% url 'exam' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="question_id" value="{{ question.id }}">
+                    {% if question.question_type == 'mcq' and question.options %}
+                        {% for option in question.options %}
+                            <input type="radio" name="answer" value="{{ option }}" required>
+                            <label>{{ option }}</label><br>
+                        {% endfor %}
+                    {% elif question.question_type == 'tf' %}
+                        <input type="radio" name="answer" value="true" required> 真
+                        <input type="radio" name="answer" value="false" required> 假<br>
+                    {% else %}
+                        <label for="answer_{{ question.id }}">您的答案:</label>
+                        <input type="text" name="answer" id="answer_{{ question.id }}" required>
+                    {% endif %}
+                    <button type="submit">提交答案</button>
+                    {% if user.is_staff %}
+                        <button type="submit" name="end_exam" class="end-button">結束考題</button>
+                    {% endif %}
+                </form>
             </div>
-            <button type="submit">提交問題</button>
-        </form>
-        <div id="ai-response">
-            {% if response %}
-                <p>{{ response }}</p>
-            {% else %}
-                <p>請提交問題以獲取 AI 回答。</p>
-            {% endif %}
-        </div>
-    </div>
-    <!-- 右側：題目問答 -->
-    <div style="width: 45%;">
-        <h2>題目問答</h2>
-        <form method="post" action="{% url 'ask_exam_question' %}" id="exam-form">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="prompt">輸入您的回答:</label>
-                <textarea name="prompt" placeholder="輸入您的回答..." rows="4" required></textarea>
-            </div>
-            <button type="submit">提交回答</button>
-        </form>
-        <div id="exam-response">
-            {% if exam_response %}
-                <p>{{ exam_response }}</p>
-            {% else %}
-                <p>請提交回答以獲取回饋。</p>
-            {% endif %}
-        </div>
-    </div>
-</div>
+        {% endfor %}
+    {% else %}
+        <p>目前沒有可用的考試題目。</p>
+    {% endif %}
 {% endblock %}

@@ -9,6 +9,26 @@
             <p>姓名: {{ user.get_full_name|default:user.username }}</p>
             <p>學號: {{ user.student_id|default:"未設定學號" }}</p>
             <p>頭像: {% if user.avatar %}<img src="{{ user.avatar.url }}" alt="頭像" style="width: 100px;">{% else %}無頭像{% endif %}</p>
+
+            <!-- 更改頭像表單 -->
+            <h4>更改頭像</h4>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                {{ avatar_form.as_p }}
+                <button type="submit">更新頭像</button>
+            </form>
+
+            <!-- 顯示考試成績 -->
+            <h4>考試成績</h4>
+            {% if exam_scores %}
+                <ul>
+                    {% for score in exam_scores %}
+                        <li>{{ score.exam_question__title }}: {{ score.score|default:"未評分" }} / {{ score.exam_question__points }} 分</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>暫無考試成績。</p>
+            {% endif %}
         {% else %}
             <p>請登入以查看您的個人資料。</p>
         {% endif %}

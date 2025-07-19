@@ -1,41 +1,51 @@
 {% extends 'base.html' %}
 
-{% block title %}計算機概論 - 出題{% endblock %}
+{% block title %}教師出題{% endblock %}
+
+{% block extra_head %}
+    <style>
+        label { font-weight: bold; margin-top: 10px; display: block; }
+        input, textarea, select { width: 100%; max-width: 400px; padding: 5px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+    </style>
+{% endblock %}
 
 {% block content %}
-    {% if user.is_authenticated and user.is_staff %}
-        <div class="post">
-            <h2>出題區</h2>
-            <form method="post" action="{% url 'upload_question' %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="title">題目標題:</label>
-                    <input type="text" name="title" required>
-                </div>
-                <div class="form-group">
-                    <label for="question">題目內容:</label>
-                    <textarea name="question" rows="4" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="image">上傳圖片:</label>
-                    <input type="file" name="image" accept="image/*">
-                </div>
-                <div class="form-group">
-                    <label for="max_attempts">最大提問次數:</label>
-                    <input type="number" name="max_attempts" min="1" value="1" required>
-                </div>
-                <button type="submit">提交題目</button>
-            </form>
-            {% if messages %}
-                {% for message in messages %}
-                    <p class="message {{ message.tags }}">{{ message }}</p>
-                {% endfor %}
-            {% endif %}
-        </div>
-    {% else %}
-        <div class="post">
-            <h3>無權限訪問</h3>
-            <p>此頁面僅限管理員訪問。請聯繫管理員以獲取權限。</p>
-        </div>
+    <h2>教師出題</h2>
+    {% if messages %}
+        {% for message in messages %}
+            <p{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</p>
+        {% endfor %}
     {% endif %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="title">題目標題:</label>
+        <input type="text" name="title" required><br>
+        <label for="question">題目內容:</label>
+        <textarea name="question" required></textarea><br>
+        <label for="question_type">題型:</label>
+        <select name="question_type" required>
+            <option value="essay">問答題</option>
+            <option value="mcq">選擇題</option>
+            <option value="tf">是非題</option>
+        </select><br>
+        <label for="options">選項 (選擇題，每行一個選項):</label>
+        <textarea name="options" placeholder="例如: A. 選項1\nB. 選項2"></textarea><br>
+        <label for="correct_answer">正確答案:</label>
+        <input type="text" name="correct_answer" required><br>
+        <label for="max_attempts">最大提問次數:</label>
+        <input type="number" name="max_attempts" value="1" min="1"><br>
+        <label for="points">配分:</label>
+        <input type="number" name="points" value="10" min="0" max="100" required><br>
+        <label for="image">上傳圖片:</label>
+        <input type="file" name="image"><br>
+        <label for="publish_time">公佈時間 (YYYY-MM-DD HH:MM):</label>
+        <input type="text" name="publish_time" placeholder="例如: 2025-07-20 08:00"><br>
+        <label for="start_time">開始時間 (YYYY-MM-DD HH:MM):</label>
+        <input type="text" name="start_time" placeholder="例如: 2025-07-20 09:00"><br>
+        <label for="end_time">截止時間 (YYYY-MM-DD HH:MM):</label>
+        <input type="text" name="end_time" placeholder="例如: 2025-07-20 10:00"><br>
+        <button type="submit">提交題目</button>
+    </form>
 {% endblock %}
