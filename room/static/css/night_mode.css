@@ -1,6 +1,22 @@
 body.dark-mode {
-    background-color: #121212;
+    background-color: #121212 !important;
     color: #e0e0e0;
+}
+
+body.dark-mode html {
+    background-color: #121212 !important;
+}
+
+body.dark-mode .container {
+    background-color: #121212 !important;
+}
+
+body.dark-mode .main {
+    background-color: #121212 !important;
+}
+
+body.dark-mode .main-inner {
+    background-color: #121212 !important;
 }
 
 body.dark-mode .sidebar {
@@ -29,6 +45,10 @@ body.dark-mode .navbar button:hover {
     background-color: #666;
 }
 
+body.dark-mode .content {
+    background-color: #121212 !important;
+}
+
 body.dark-mode .post {
     background-color: #222;
     color: #ddd;
@@ -51,4 +71,21 @@ body.dark-mode button[type="submit"] {
 
 body.dark-mode button[type="submit"]:hover {
     background-color: #4a6f9a;
+}
+
+/* 額外修復：確保所有可能的背景都被覆蓋 */
+body.dark-mode * {
+    border-color: #444;
+}
+
+body.dark-mode input, 
+body.dark-mode select {
+    background-color: #222;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+/* 確保表單元素也有正確的樣式 */
+body.dark-mode .form-group label {
+    color: #e0e0e0;
 }

@@ -4,55 +4,195 @@
 
 {% block extra_head %}
     <style>
-        .question { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        label { font-weight: bold; }
-        input, textarea { margin: 5px 0; padding: 5px; }
-        button { padding: 10px 20px; background-color: #008CBA; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #007B9A; }
-        img { max-width: 300px; }
-        .end-button { background-color: #f44336; margin-left: 10px; }
-        .end-button:hover { background-color: #da190b; }
+        .exam-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .exam-paper { margin-bottom: 30px; border: 2px solid #ddd; border-radius: 10px; padding: 20px; background-color: #f9f9f9; }
+        .exam-header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #008CBA; }
+        .exam-title { color: #008CBA; margin-bottom: 10px; }
+        .exam-info { color: #666; font-size: 14px; }
+        .question-container { margin-bottom: 25px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; background-color: white; }
+        .question-header { margin-bottom: 15px; }
+        .question-number { font-weight: bold; color: #008CBA; }
+        .question-title { font-weight: bold; margin: 5px 0; }
+        .question-content { margin: 10px 0; line-height: 1.6; }
+        .question-image { text-align: center; margin: 15px 0; }
+        .question-image img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px; }
+        .options-container { margin: 15px 0; }
+        .option-item { margin: 8px 0; padding: 8px; border-radius: 5px; transition: background-color 0.2s; }
+        .option-item:hover { background-color: #f0f8ff; }
+        .option-item input[type="radio"] { margin-right: 10px; }
+        .option-item label { cursor: pointer; font-weight: normal; }
+        .text-answer { margin: 15px 0; }
+        .text-answer input[type="text"], .text-answer textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        .submit-section { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd; }
+        .submit-btn { padding: 12px 30px; background-color: #008CBA; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 0 10px; }
+        .submit-btn:hover { background-color: #007B9A; }
+        .end-btn { background-color: #f44336; }
+        .end-btn:hover { background-color: #da190b; }
+        .no-exam-message { text-align: center; padding: 50px; color: #666; font-size: 18px; }
+        .ai-section { margin-top: 40px; border: 2px solid #ddd; border-radius: 10px; padding: 20px; background-color: #f0f8ff; }
+        .ai-title { color: #008CBA; margin-bottom: 15px; }
+        .ai-input { width: 100%; min-height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; }
+        .ai-btn { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .ai-btn:hover { background-color: #45a049; }
+        .ai-response { margin-top: 15px; padding: 15px; background-color: white; border-radius: 5px; border: 1px solid #ddd; min-height: 50px; }
+        .messages { margin-bottom: 20px; }
+        .messages p { padding: 10px; border-radius: 5px; margin: 5px 0; }
+        .messages .error { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .messages .success { background-color: #e8f5e8; color: #2e7d32; border: 1px solid #c8e6c8; }
+        .messages .info { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
     </style>
+    <script>
+        function askAI() {
+            const question = document.getElementById('ai_question').value.trim();
+            if (!question) {
+                alert('請輸入問題');
+                return;
+            }
+            
+            const responseDiv = document.getElementById('ai-response');
+            responseDiv.innerHTML = '正在處理您的問題...';
+            
+            fetch('/exam/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `ai_question=${encodeURIComponent(question)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.innerHTML = data.response || '無法獲得回應';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                responseDiv.innerHTML = '發生錯誤，請稍後再試';
+            });
+        }
+
+        function confirmSubmit() {
+            return confirm('確定要提交考卷嗎？提交後將無法修改答案。');
+        }
+
+        function confirmEndExam() {
+            return confirm('確定要結束考試嗎？這將結束所有學生的考試。');
+        }
+
+        // 自動保存功能（可選）
+        function autoSave() {
+            // 這裡可以添加自動保存邏輯
+        }
+
+        // 頁面載入完成後執行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 可以添加一些初始化邏輯
+            console.log('考試頁面已載入');
+        });
+    </script>
 {% endblock %}
 
 {% block content %}
-    <h2>考試</h2>
-    {% if messages %}
-        {% for message in messages %}
-            <p{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</p>
-        {% endfor %}
-    {% endif %}
-    {% if exam_questions %}
-        {% for question in exam_questions %}
-            <div class="question">
-                <h3>{{ question.title }}</h3>
-                <p>{{ question.content }}</p>
-                {% if question.image %}
-                    <img src="{{ question.image.url }}" alt="題目圖片">
-                {% endif %}
-                <form method="post" action="{% url 'exam' %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="question_id" value="{{ question.id }}">
-                    {% if question.question_type == 'mcq' and question.options %}
-                        {% for option in question.options %}
-                            <input type="radio" name="answer" value="{{ option }}" required>
-                            <label>{{ option }}</label><br>
-                        {% endfor %}
-                    {% elif question.question_type == 'tf' %}
-                        <input type="radio" name="answer" value="true" required> 真
-                        <input type="radio" name="answer" value="false" required> 假<br>
-                    {% else %}
-                        <label for="answer_{{ question.id }}">您的答案:</label>
-                        <input type="text" name="answer" id="answer_{{ question.id }}" required>
-                    {% endif %}
-                    <button type="submit">提交答案</button>
-                    {% if user.is_staff %}
-                        <button type="submit" name="end_exam" class="end-button">結束考題</button>
-                    {% endif %}
-                </form>
+    <div class="exam-container">
+        <h2 style="text-align: center; color: #008CBA;">線上考試系統</h2>
+        
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <p class="{{ message.tags }}">{{ message }}</p>
+                {% endfor %}
             </div>
-        {% endfor %}
-    {% else %}
-        <p>目前沒有可用的考試題目。</p>
-    {% endif %}
+        {% endif %}
+        
+        {% if exam_papers %}
+            {% for paper in exam_papers %}
+                <div class="exam-paper">
+                    <div class="exam-header">
+                        <h3 class="exam-title">{{ paper.title }}</h3>
+                        <div class="exam-info">
+                            <p>總分：{{ paper.total_points }} 分</p>
+                            <p>題目數量：{{ paper.questions.count }} 題</p>
+                        </div>
+                    </div>
+                    
+                    <form method="post" action="{% url 'exam' %}" onsubmit="return confirmSubmit()">
+                        {% csrf_token %}
+                        <input type="hidden" name="paper_id" value="{{ paper.id }}">
+                        
+                        {% for question in paper.questions.all %}
+                            <div class="question-container">
+                                <div class="question-header">
+                                    <span class="question-number">第 {{ forloop.counter }} 題</span>
+                                    <span style="float: right; color: #666;">({{ question.points }} 分)</span>
+                                </div>
+                                
+                                {% if question.title %}
+                                    <div class="question-title">{{ question.title }}</div>
+                                {% endif %}
+                                
+                                <div class="question-content">{{ question.content }}</div>
+                                
+                                {% if question.image %}
+                                    <div class="question-image">
+                                        <img src="{{ question.image.url }}" alt="題目圖片">
+                                    </div>
+                                {% endif %}
+                                
+                                {% if question.question_type == 'mcq' and question.options %}
+                                    <div class="options-container">
+                                        {% for option in question.options %}
+                                            <div class="option-item">
+                                                <input type="radio" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" required>
+                                                <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{{ option }}</label>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% elif question.question_type == 'tf' %}
+                                    <div class="options-container">
+                                        <div class="option-item">
+                                            <input type="radio" name="answers_{{ question.id }}" value="true" id="q{{ question.id }}_true" required>
+                                            <label for="q{{ question.id }}_true">正確 (True)</label>
+                                        </div>
+                                        <div class="option-item">
+                                            <input type="radio" name="answers_{{ question.id }}" value="false" id="q{{ question.id }}_false" required>
+                                            <label for="q{{ question.id }}_false">錯誤 (False)</label>
+                                        </div>
+                                    </div>
+                                {% elif question.question_type == 'essay' %}
+                                    <div class="text-answer">
+                                        <label for="answer_{{ question.id }}">請輸入您的答案：</label>
+                                        <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的答案..." required></textarea>
+                                    </div>
+                                {% else %}
+                                    <div class="text-answer">
+                                        <label for="answer_{{ question.id }}">請輸入您的答案：</label>
+                                        <input type="text" name="answers_{{ question.id }}" id="answer_{{ question.id }}" placeholder="請輸入答案..." required>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        
+                        <div class="submit-section">
+                            <button type="submit" class="submit-btn">提交考卷</button>
+                            {% if user.is_staff %}
+                                <button type="submit" name="end_exam" class="submit-btn end-btn" onclick="return confirmEndExam()">結束考試</button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-exam-message">
+                <h3>目前沒有可用的考試</h3>
+                <p>請聯繫管理員或稍後再試</p>
+            </div>
+        {% endif %}
+        
+        <div class="ai-section">
+            <h3 class="ai-title">🤖 AI 問答助手</h3>
+            <p style="color: #666; margin-bottom: 15px;">如果您在考試過程中有疑問，可以向 AI 助手提問</p>
+            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：這道題目的關鍵概念是什麼？"></textarea>
+            <button onclick="askAI()" class="ai-btn">💬 提問</button>
+            <div id="ai-response" class="ai-response">AI 回應將顯示在這裡...</div>
+        </div>
+    </div>
 {% endblock %}

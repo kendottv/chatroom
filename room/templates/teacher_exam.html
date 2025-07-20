@@ -1,51 +1,436 @@
 {% extends 'base.html' %}
-
-{% block title %}教師出題{% endblock %}
-
-{% block extra_head %}
-    <style>
-        label { font-weight: bold; margin-top: 10px; display: block; }
-        input, textarea, select { width: 100%; max-width: 400px; padding: 5px; margin-bottom: 10px; }
-        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #45a049; }
-    </style>
-{% endblock %}
+{% block title %}計算機概論 - 出題{% endblock %}
 
 {% block content %}
-    <h2>教師出題</h2>
-    {% if messages %}
-        {% for message in messages %}
-            <p{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</p>
-        {% endfor %}
-    {% endif %}
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <label for="title">題目標題:</label>
-        <input type="text" name="title" required><br>
-        <label for="question">題目內容:</label>
-        <textarea name="question" required></textarea><br>
-        <label for="question_type">題型:</label>
-        <select name="question_type" required>
-            <option value="essay">問答題</option>
-            <option value="mcq">選擇題</option>
-            <option value="tf">是非題</option>
-        </select><br>
-        <label for="options">選項 (選擇題，每行一個選項):</label>
-        <textarea name="options" placeholder="例如: A. 選項1\nB. 選項2"></textarea><br>
-        <label for="correct_answer">正確答案:</label>
-        <input type="text" name="correct_answer" required><br>
-        <label for="max_attempts">最大提問次數:</label>
-        <input type="number" name="max_attempts" value="1" min="1"><br>
-        <label for="points">配分:</label>
-        <input type="number" name="points" value="10" min="0" max="100" required><br>
-        <label for="image">上傳圖片:</label>
-        <input type="file" name="image"><br>
-        <label for="publish_time">公佈時間 (YYYY-MM-DD HH:MM):</label>
-        <input type="text" name="publish_time" placeholder="例如: 2025-07-20 08:00"><br>
-        <label for="start_time">開始時間 (YYYY-MM-DD HH:MM):</label>
-        <input type="text" name="start_time" placeholder="例如: 2025-07-20 09:00"><br>
-        <label for="end_time">截止時間 (YYYY-MM-DD HH:MM):</label>
-        <input type="text" name="end_time" placeholder="例如: 2025-07-20 10:00"><br>
-        <button type="submit">提交題目</button>
-    </form>
+    <!-- 引入 Quill CSS -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+
+    <!-- 自訂樣式 -->
+    <style>
+        .tab-content { padding: 20px; background-color: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-button { padding: 10px 20px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; color: #1e355b; cursor: pointer; }
+        .tab-button.active { background-color: #1e355b; color: white; border-color: #1e355b; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { font-weight: bold; }
+        .btn { margin-right: 5px; }
+        .question-item { margin-bottom: 15px; padding: 15px; background-color: #fff; border: 1px solid #ddd; border-radius: 10px; }
+        .question-item:hover { background-color: #f8f9fa; }
+        .selected { border-color: #1e355b; }
+        #selected-summary { margin-top: 20px; }
+        .option-input-group { margin-bottom: 10px; }
+        .answer-selector { min-width: 80px; }
+        body.dark-mode .tab-content { background-color: #222; }
+        body.dark-mode .tab-button { background-color: #333; color: #e0e0e0; border-color: #444; }
+        body.dark-mode .tab-button.active { background-color: #1e355b; color: white; }
+        body.dark-mode .question-item { background-color: #222; border-color: #444; }
+        body.dark-mode .question-item:hover { background-color: #333; }
+        body.dark-mode .selected { border-color: #2e4d7a; }
+    </style>
+
+    <div class="content">
+        <!-- 標籤頁導航 -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('create-question')">新增題目</button>
+            <button class="tab-button" onclick="switchTab('question-bank')">題目庫</button>
+            <button class="tab-button" onclick="switchTab('create-exam')">創建考試</button>
+        </div>
+
+        <!-- 新增題目標籤頁 -->
+        <div id="create-question" class="tab-content active">
+            <h3>新增題目</h3>
+            <form method="post" enctype="multipart/form-data" class="row g-3">
+                {% csrf_token %}
+                {% if question_to_edit %}
+                    <input type="hidden" name="question_id" value="{{ question_to_edit.id }}" class="col-12">
+                {% endif %}
+                
+                <div class="form-group col-md-6">
+                    <label for="title" class="form-label">題目標題：</label>
+                    <input type="text" name="title" value="{{ question_to_edit.title|default:'' }}" class="form-control" required>
+                </div>
+                
+                <div class="form-group col-md-6">
+                    <label for="question_type" class="form-label">題型：</label>
+                    <select name="question_type" id="question_type" class="form-select">
+                        {% for key, value in question_types.items %}
+                            <option value="{{ key }}" {% if question_to_edit and question_to_edit.question_type == key %}selected{% endif %}>{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group col-12">
+                    <label for="question_text" class="form-label">題目內容：</label>
+                    <div id="question_editor">
+                        <div id="editor-container">{% if question_to_edit %}{{ question_to_edit.content|safe }}{% else %}<p>請輸入題目內容</p>{% endif %}</div>
+                        <input type="hidden" name="question_text" id="hidden_question">
+                    </div>
+                </div>
+                
+                <div class="options col-12" id="options_container" style="display: none;">
+                    <h4>選項：</h4>
+                    {% for i in "1234" %}
+                        <div class="form-group">
+                            <div class="option-input-group">
+                                <span class="answer-selector">
+                                    <input type="radio" name="correct_option" value="{{ i }}" {% if question_to_edit and question_to_edit.correct_answer == i %}checked{% endif %} class="sc-answer">
+                                    <input type="checkbox" name="correct_options" value="{{ i }}" {% if question_to_edit and question_to_edit.correct_answer and i in question_to_edit.correct_answer %}checked{% endif %} class="mcq-answer" style="display: none;">
+                                    <label>正確答案</label>
+                                </span>
+                                {% if question_to_edit.options and question_to_edit.options|length > forloop.counter0 %}
+                                    <input type="text" name="option_{{ i }}" value="{{ question_to_edit.options|slice:forloop.counter0|first }}" class="form-control" placeholder="選項 {{ i }}" required>
+                                {% else %}
+                                    <input type="text" name="option_{{ i }}" value="" class="form-control" placeholder="選項 {{ i }}" required>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="options col-12" id="true_false_container" style="display: none;">
+                    <h4>答案：</h4>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="radio" name="correct_answer" value="true" {% if question_to_edit and question_to_edit.correct_answer == 'true' %}checked{% endif %} class="form-check-input">
+                            <label class="form-check-label">True</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="radio" name="correct_answer" value="false" {% if question_to_edit and question_to_edit.correct_answer == 'false' %}checked{% endif %} class="form-check-input">
+                            <label class="form-check-label">False</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group col-md-6">
+                    <label for="max_attempts" class="form-label">最大嘗試次數：</label>
+                    <input type="number" name="max_attempts" value="{{ question_to_edit.max_attempts|default:1 }}" class="form-control" min="1" required>
+                </div>
+                
+                <div class="form-group col-md-6">
+                    <label for="points" class="form-label">配分：</label>
+                    <input type="number" name="points" value="{{ question_to_edit.points|default:10 }}" class="form-control" min="0" max="100" required>
+                </div>
+                
+                <div class="form-group col-12">
+                    <label for="image" class="form-label">上傳圖片：</label>
+                    <input type="file" name="image" accept="image/*" class="form-control">
+                    {% if question_to_edit and question_to_edit.image %}
+                        <p class="mt-2">當前圖片: <img src="{{ question_to_edit.image.url }}" width="100"></p>
+                    {% endif %}
+                </div>
+                
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        {% if question_to_edit %}更新題目{% else %}儲存題目{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 題目庫標籤頁 -->
+        <div id="question-bank" class="tab-content">
+            <div class="question-bank">
+                <div class="row mb-3">
+                    <div class="col">
+                        <h3>題目庫 ({{ all_questions.count }} 題)</h3>
+                    </div>
+                    <div class="col-auto">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-primary" onclick="selectAll()">全選</button>
+                            <button type="button" class="btn btn-secondary" onclick="clearSelection()">清除選擇</button>
+                            <button type="button" class="btn btn-warning" onclick="showSelectedQuestions()">查看已選題目 (<span id="selected-count">0</span>)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="selected-summary" class="selected-questions" style="display: none;">
+                    <h4>已選題目</h4>
+                    <div id="selected-list"></div>
+                    <div class="selected-count">
+                        總計：<span id="total-questions">0</span> 題，<span id="total-points">0</span> 分
+                    </div>
+                </div>
+
+                {% for question in all_questions %}
+                    <div class="question-item" id="question-{{ question.id }}">
+                        <input type="checkbox" name="question_ids" value="{{ question.id }}" class="form-check-input question-checkbox" onchange="updateSelection()">
+                        
+                        <div class="row">
+                            <div class="col">
+                                <div class="question-header">
+                                    <span class="badge bg-primary question-type-badge">
+                                        {% if question.question_type == "sc" %}單選題
+                                        {% elif question.question_type == "mcq" %}多選題
+                                        {% elif question.question_type == "tf" %}是非題
+                                        {% elif question.question_type == "sa" %}簡答題
+                                        {% else %}{{ question.question_type }}{% endif %}
+                                    </span>
+                                    <span class="badge bg-secondary points-badge">{{ question.points }} 分</span>
+                                </div>
+                                <p class="mt-2"><strong>{{ question.title }}</strong></p>
+                                <p>{{ question.content|truncatechars:100|safe }}</p>
+                                
+                                {% if question.options and question.question_type in "sc,mcq"|make_list %}
+                                    <div class="mt-2" style="font-size: 14px; color: #666;">
+                                        <strong>選項:</strong>
+                                        {% for option in question.options %}
+                                            <span class="ms-2">{{ forloop.counter }}. {{ option }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% elif question.question_type == "tf" %}
+                                    <div class="mt-2" style="font-size: 14px; color: #666;">
+                                        <strong>答案:</strong> {{ question.correct_answer|yesno:"True,False" }}
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="mt-2" style="font-size: 12px; color: #999;">
+                                    創建時間: {{ question.created_at|date:"Y-m-d H:i" }}
+                                    <a href="?edit={{ question.id }}" class="ms-2 text-primary">編輯</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="text-muted">目前沒有題目。請先新增題目。</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 創建考試標籤頁 -->
+        <div id="create-exam" class="tab-content">
+            <h3>創建考試</h3>
+            <form method="post" id="exam-form" class="row g-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_exam">
+                
+                <div class="form-group col-md-6">
+                    <label for="exam_title" class="form-label">考試名稱：</label>
+                    <input type="text" name="exam_title" class="form-control" required>
+                </div>
+                
+                <div class="form-group col-md-6">
+                    <label for="exam_description" class="form-label">考試說明：</label>
+                    <textarea name="exam_description" rows="3" class="form-control"></textarea>
+                </div>
+                
+                <div class="form-group col-md-4">
+                    <label for="publish_time" class="form-label">發佈時間：</label>
+                    <input type="datetime-local" name="publish_time" class="form-control" required>
+                </div>
+                
+                <div class="form-group col-md-4">
+                    <label for="start_time" class="form-label">開始時間：</label>
+                    <input type="datetime-local" name="start_time" class="form-control" required>
+                </div>
+                
+                <div class="form-group col-md-4">
+                    <label for="end_time" class="form-label">截止時間：</label>
+                    <input type="datetime-local" name="end_time" class="form-control" required>
+                </div>
+                
+                <div class="form-group col-12">
+                    <label for="duration_minutes" class="form-label">考試時長（分鐘）：</label>
+                    <input type="number" name="duration_minutes" value="60" class="form-control" min="5" max="300" required>
+                </div>
+
+                <div class="form-group col-12">
+                    <label class="form-label">考試題目：</label>
+                    <div id="exam-questions-summary" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: #f8f9fa; min-height: 100px;">
+                        <p style="color: #666;">請先到「題目庫」標籤頁選擇要加入考試的題目</p>
+                    </div>
+                </div>
+                
+                <input type="hidden" name="selected_questions" id="selected_questions_input">
+                
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary" id="create-exam-btn" disabled>創建考試</button>
+                    <button type="button" class="btn btn-secondary" onclick="switchTab('question-bank')">選擇題目</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
+    <script>
+        let selectedQuestions = [];
+
+        // 標籤頁切換
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            if (tabName === 'create-exam') {
+                updateExamQuestionsSummary();
+            }
+        }
+
+        // 全選功能
+        function selectAll() {
+            document.querySelectorAll('input[name="question_ids"]').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelection();
+        }
+
+        // 清除選擇
+        function clearSelection() {
+            document.querySelectorAll('input[name="question_ids"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelection();
+        }
+
+        // 顯示/隱藏已選題目
+        function showSelectedQuestions() {
+            const summaryDiv = document.getElementById('selected-summary');
+            summaryDiv.style.display = summaryDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // 更新選擇狀態
+        function updateSelection() {
+            const checkboxes = document.querySelectorAll('input[name="question_ids"]:checked');
+            selectedQuestions = Array.from(checkboxes).map(cb => ({
+                id: cb.value,
+                element: cb.closest('.question-item')
+            }));
+
+            document.querySelectorAll('.question-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            selectedQuestions.forEach(q => {
+                q.element.classList.add('selected');
+            });
+
+            document.getElementById('selected-count').textContent = selectedQuestions.length;
+            let totalPoints = 0;
+            selectedQuestions.forEach(q => {
+                const pointsBadge = q.element.querySelector('.points-badge');
+                if (pointsBadge) {
+                    totalPoints += parseInt(pointsBadge.textContent.replace(' 分', ''));
+                }
+            });
+            document.getElementById('total-questions').textContent = selectedQuestions.length;
+            document.getElementById('total-points').textContent = totalPoints;
+            updateSelectedList();
+            updateCreateExamButton();
+        }
+
+        // 更新已選題目列表
+        function updateSelectedList() {
+            const listDiv = document.getElementById('selected-list');
+            if (selectedQuestions.length === 0) {
+                listDiv.innerHTML = '<p>尚未選擇題目</p>';
+                return;
+            }
+            let html = '';
+            selectedQuestions.forEach((q, index) => {
+                const questionTitle = q.element.querySelector('strong').textContent;
+                const questionType = q.element.querySelector('.question-type-badge').textContent;
+                const points = q.element.querySelector('.points-badge').textContent;
+                html += `<div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px;">
+                    ${index + 1}. ${questionTitle} (${questionType}, ${points})
+                </div>`;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        // 更新創建考試按鈕狀態
+        function updateCreateExamButton() {
+            const createBtn = document.getElementById('create-exam-btn');
+            const selectedQuestionsInput = document.getElementById('selected_questions_input');
+            if (selectedQuestions.length > 0) {
+                createBtn.disabled = false;
+                selectedQuestionsInput.value = selectedQuestions.map(q => q.id).join(',');
+            } else {
+                createBtn.disabled = true;
+                selectedQuestionsInput.value = '';
+            }
+        }
+
+        // 更新考試題目摘要
+        function updateExamQuestionsSummary() {
+            const summaryDiv = document.getElementById('exam-questions-summary');
+            if (selectedQuestions.length === 0) {
+                summaryDiv.innerHTML = '<p style="color: #666;">請先到「題目庫」標籤頁選擇要加入考試的題目</p>';
+                return;
+            }
+            let totalPoints = 0;
+            let html = '<h4>已選題目：</h4>';
+            selectedQuestions.forEach((q, index) => {
+                const questionTitle = q.element.querySelector('strong').textContent;
+                const questionType = q.element.querySelector('.question-type-badge').textContent;
+                const pointsText = q.element.querySelector('.points-badge').textContent;
+                const points = parseInt(pointsText.replace(' 分', ''));
+                totalPoints += points;
+                html += `<div style="margin-bottom: 5px;">
+                    ${index + 1}. ${questionTitle} (${questionType}, ${points}分)
+                </div>`;
+            });
+            html += `<div style="margin-top: 15px; font-weight: bold; color: #1e355b;">
+                總計：${selectedQuestions.length} 題，${totalPoints} 分
+            </div>`;
+            summaryDiv.innerHTML = html;
+        }
+
+        // Quill 編輯器初始化
+        document.addEventListener("DOMContentLoaded", function () {
+            var quill = new Quill('#editor-container', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [['bold', 'italic', 'underline'], ['link', 'image'], [{'list': 'ordered'}, {'list': 'bullet'}]]
+                }
+            });
+
+            var initialContent = document.getElementById('editor-container').innerHTML;
+            if (initialContent.trim() === '' || initialContent === '<p>請輸入題目內容</p>') {
+                quill.setContents([{ insert: '\n' }]);
+            } else {
+                quill.root.innerHTML = initialContent;
+            }
+            document.getElementById('hidden_question').value = quill.root.innerHTML;
+
+            quill.on('text-change', function () {
+                document.getElementById('hidden_question').value = quill.root.innerHTML;
+            });
+
+            const questionType = document.getElementById('question_type');
+            const optionsContainer = document.getElementById('options_container');
+            const trueFalseContainer = document.getElementById('true_false_container');
+
+            function updateForm() {
+                const optionsContainer = document.getElementById('options_container');
+                const trueFalseContainer = document.getElementById('true_false_container');
+                const scAnswers = document.querySelectorAll('.sc-answer');
+                const mcqAnswers = document.querySelectorAll('.mcq-answer');
+                
+                if (questionType.value === 'sa') {
+                    optionsContainer.style.display = 'none';
+                    trueFalseContainer.style.display = 'none';
+                } else if (questionType.value === 'tf') {
+                    optionsContainer.style.display = 'none';
+                    trueFalseContainer.style.display = 'block';
+                } else if (questionType.value === 'sc') {
+                    optionsContainer.style.display = 'block';
+                    trueFalseContainer.style.display = 'none';
+                    scAnswers.forEach(radio => radio.style.display = 'inline');
+                    mcqAnswers.forEach(checkbox => checkbox.style.display = 'none');
+                } else if (questionType.value === 'mcq') {
+                    optionsContainer.style.display = 'block';
+                    trueFalseContainer.style.display = 'none';
+                    scAnswers.forEach(radio => radio.style.display = 'none');
+                    mcqAnswers.forEach(checkbox => checkbox.style.display = 'inline');
+                }
+            }
+
+            updateForm();
+            questionType.addEventListener('change', updateForm);
+        });
+    </script>
 {% endblock %}

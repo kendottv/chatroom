@@ -19,28 +19,23 @@ class CustomUser(AbstractUser):
 # 考試題目模型
 class ExamQuestion(models.Model):
     QUESTION_TYPES = (
-        ('mcq', '選擇題'),
-        ('essay', '問答題'),
-        ('tf', '是非題'),
+        ('sc', 'Single Choice'),  # 新增單選題型
+        ('mcq', 'Multiple Choice'),
+        ('tf', 'True/False'),
+        ('sa', 'Short Answer'),
     )
     title = models.CharField(max_length=200, verbose_name="題目標題")
     content = models.TextField(verbose_name="題目內容")
-    question_type = models.CharField(max_length=10, choices=QUESTION_TYPES, default='essay', verbose_name="題型")  # 新增
-    options = models.JSONField(default=list, blank=True, null=True, verbose_name="選項（選擇題專用）")  # 新增
-    correct_answer = models.TextField(blank=True, null=True, verbose_name="正確答案")  # 改為 TextField 支援多行
-    image = models.ImageField(upload_to='exam_images/', blank=True, null=True, verbose_name="題目圖片")
-    max_attempts = models.PositiveIntegerField(default=1, verbose_name="最大提問次數")
-    points = models.PositiveIntegerField(
-        default=10,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name="配分",
-        help_text="每題配分 (0-100)"
-    )
+    question_type = models.CharField(max_length=10, choices=QUESTION_TYPES, default='sa', verbose_name="題型")
+    options = models.JSONField(null=True, blank=True, verbose_name="選項列表")  # 例如 ["a", "b", "c"] 或 [1, 2, 3]
+    correct_answer = models.TextField(null=True, blank=True, verbose_name="正確答案")  # 單選/多選用索引，TF用True/False
+    max_attempts = models.IntegerField(default=1, validators=[MinValueValidator(1)], verbose_name="最大嘗試次數")
+    points = models.IntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="配分")
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
-    created_at = models.DateTimeField(default=timezone.now, verbose_name="創建時間")
-    publish_time = models.DateTimeField(verbose_name="公佈時間", null=True, blank=True)
-    start_time = models.DateTimeField(verbose_name="開始時間", null=True, blank=True)
-    end_time = models.DateTimeField(verbose_name="截止時間", null=True, blank=True)
+    image = models.ImageField(upload_to='questions/', null=True, blank=True, verbose_name="題目圖片")
+    publish_time = models.DateTimeField(default=timezone.now, verbose_name="發佈時間")
+    start_time = models.DateTimeField(default=timezone.now, verbose_name="開始時間")
+    end_time = models.DateTimeField(default=timezone.now, verbose_name="截止時間")
 
     def __str__(self):
         return self.title
@@ -49,20 +44,31 @@ class ExamQuestion(models.Model):
         verbose_name = "考試題目"
         verbose_name_plural = "考試題目"
 
-# 提問與回答記錄模型
+# 考卷模型
+class ExamPaper(models.Model):
+    title = models.CharField(max_length=200, verbose_name="考卷名稱")
+    questions = models.ManyToManyField(ExamQuestion, verbose_name="包含題目")
+    total_points = models.IntegerField(default=0, verbose_name="總分")
+    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
+    publish_time = models.DateTimeField(default=timezone.now, verbose_name="發佈時間")
+    start_time = models.DateTimeField(default=timezone.now, verbose_name="開始時間")
+    end_time = models.DateTimeField(default=timezone.now, verbose_name="截止時間")
+    pdf_file = models.FileField(upload_to='exam_papers/', null=True, blank=True, verbose_name="考卷 PDF")
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        verbose_name = "考卷"
+        verbose_name_plural = "考卷"
+
 class InteractionLog(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="使用者")
-    question = models.TextField(verbose_name="提問內容")
-    response = models.TextField(verbose_name="AI 回答")
-    exam_question = models.ForeignKey(ExamQuestion, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="相關考試題目")
-    attempt_count = models.PositiveIntegerField(default=1, verbose_name="提問次數")
-    created_at = models.DateTimeField(default=timezone.now, verbose_name="提問時間")
-    score = models.FloatField(
-        default=0.0,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name="得分",
-        help_text="題目得分 (0-100)"
-    )
+    question = models.TextField(verbose_name="問題")
+    response = models.TextField(verbose_name="回覆")
+    exam_question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關題目")
+    score = models.IntegerField(default=0, verbose_name="得分")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="創建時間")
 
     def __str__(self):
         return f"{self.user.username} - {self.question[:50]}"

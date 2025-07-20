@@ -26,9 +26,20 @@
         flex-direction: column;
     }
 
+    /* 夜間模式背景修復 */
+    body.dark-mode html,
+    body.dark-mode body {
+        background: #121212 !important;
+    }
+
     .container {
         display: flex;
         flex: 1;
+        background: inherit;
+    }
+
+    body.dark-mode .container {
+        background: #121212 !important;
     }
 
     .sidebar {
@@ -66,12 +77,22 @@
         flex: 1;
         display: flex;
         flex-direction: column;
+        background: inherit;
+    }
+
+    body.dark-mode .main {
+        background: #121212 !important;
     }
 
     .main-inner {
         display: flex;
         flex-direction: column;
         flex: 1;
+        background: inherit;
+    }
+
+    body.dark-mode .main-inner {
+        background: #121212 !important;
     }
 
     header {
@@ -130,6 +151,11 @@
         flex: 1;
         overflow-y: auto;
         padding: 10px;
+        background: inherit;
+    }
+
+    body.dark-mode .content {
+        background: #121212 !important;
     }
 
     .post {
@@ -145,6 +171,11 @@
         padding: 10px;
         color: #1e355b;
         font-size: 14px;
+        background: inherit;
+    }
+
+    body.dark-mode .footer {
+        background: #121212 !important;
     }
 
     /* 表單樣式 */
@@ -179,6 +210,20 @@
 
     button[type="submit"]:hover {
         background-color: #2e4d7a;
+    }
+
+    /* 修復輸入框和選擇框的夜間模式樣式 */
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode textarea {
+        background-color: #222 !important;
+        color: #e0e0e0 !important;
+        border-color: #444 !important;
+    }
+
+    body.dark-mode option {
+        background-color: #222;
+        color: #e0e0e0;
     }
     </style>
 </head>
