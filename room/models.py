@@ -1,3 +1,4 @@
+# room/models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -54,6 +55,8 @@ class ExamPaper(models.Model):
     start_time = models.DateTimeField(default=timezone.now, verbose_name="開始時間")
     end_time = models.DateTimeField(default=timezone.now, verbose_name="截止時間")
     pdf_file = models.FileField(upload_to='exam_papers/', null=True, blank=True, verbose_name="考卷 PDF")
+    duration_minutes = models.IntegerField(default=60, validators=[MinValueValidator(1)], verbose_name="考試持續時間（分鐘）")  # 新增欄位
+    description = models.TextField(blank=True, default='', verbose_name="考試描述")  # 新增欄位
 
     def __str__(self):
         return self.title
