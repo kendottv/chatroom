@@ -75,3 +75,52 @@ class InteractionLog(models.Model):
     class Meta:
         verbose_name = "互動記錄"
         verbose_name_plural = "互動記錄"
+
+# 學生考試紀錄模型
+class ExamRecord(models.Model):
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, to_field='student_id', related_name='exam_records', verbose_name="學生")
+    exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, verbose_name="考卷")
+    score = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="總分")
+    submitted_at = models.DateTimeField(null=True, blank=True, verbose_name="提交時間")
+    is_completed = models.BooleanField(default=False, verbose_name="是否完成")
+
+    def __str__(self):
+        return f"{self.student.student_id} - {self.exam_paper.title}"
+
+    class Meta:
+        verbose_name = "考試紀錄"
+        verbose_name_plural = "考試紀錄"
+        unique_together = ('student', 'exam_paper')  # 確保一個學生對同一考卷只有一筆紀錄
+
+# 學生對每個題目的答題紀錄
+class ExamAnswer(models.Model):
+    exam_record = models.ForeignKey(ExamRecord, on_delete=models.CASCADE, related_name='answer_details', verbose_name="考試紀錄")
+    exam_question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, verbose_name="題目")
+    student_answer = models.TextField(null=True, blank=True, verbose_name="學生答案")  # 儲存單一題的答案
+    score = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="得分")
+    is_correct = models.BooleanField(default=False, verbose_name="是否正確")
+    answered_at = models.DateTimeField(auto_now_add=True, verbose_name="回答時間")
+
+    def __str__(self):
+        return f"{self.exam_record.student.student_id} - Q{self.exam_question.id}: {self.student_answer}"
+
+    class Meta:
+        verbose_name = "答題紀錄"
+        verbose_name_plural = "答題紀錄"
+        unique_together = ('exam_record', 'exam_question')  # 確保一個紀錄中不重複記錄同一題
+
+# 學生考試歷史紀錄（分開用於查看）
+class StudentExamHistory(models.Model):
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, to_field='student_id', related_name='exam_history', verbose_name="學生")
+    exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, verbose_name="考卷")
+    total_score = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="總分")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="完成時間")
+    grade = models.CharField(max_length=10, blank=True, null=True, verbose_name="等級")  # 例如 A, B, C
+
+    def __str__(self):
+        return f"{self.student.student_id} - {self.exam_paper.title} (得分: {self.total_score})"
+
+    class Meta:
+        verbose_name = "考試歷史紀錄"
+        verbose_name_plural = "考試歷史紀錄"
+        unique_together = ('student', 'exam_paper')  # 確保一個學生對同一考卷只有一筆歷史紀錄

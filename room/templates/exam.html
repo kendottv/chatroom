@@ -20,6 +20,7 @@
             padding: 20px;
             background-color: #f0f8ff;
             overflow-y: auto;
+            position: relative;
         }
 
         .exam-paper-section {
@@ -29,6 +30,7 @@
             padding: 20px;
             background-color: #f9f9f9;
             overflow-y: auto;
+            position: relative;
         }
 
         .ai-title {
@@ -140,6 +142,10 @@
         }
 
         .option-item input[type="radio"] {
+            margin-right: 10px;
+        }
+
+        .option-item input[type="checkbox"] {
             margin-right: 10px;
         }
 
@@ -287,6 +293,29 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             console.log('考試頁面已載入');
+            // 收集所有答案並填入隱藏輸入框
+            const submitForm = document.querySelector('form');
+            if (submitForm) {
+                submitForm.addEventListener('submit', function(event) {
+                    const answers = {};
+                    document.querySelectorAll('[name^="answers_"]').forEach(input => {
+                        const questionId = input.name.replace('answers_', '');
+                        if (input.type === 'checkbox') {
+                            const checked = document.querySelectorAll(`[name="answers_${questionId}"]:checked`);
+                            answers[questionId] = Array.from(checked).map(cb => cb.value);
+                        } else if (input.type === 'radio' && input.checked) {
+                            answers[questionId] = input.value;
+                        } else if (input.type === 'text' || input.type === 'textarea') {
+                            answers[questionId] = input.value || null; // 允許空白
+                        }
+                    });
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'answers';
+                    hiddenInput.value = JSON.stringify(answers);
+                    submitForm.appendChild(hiddenInput);
+                });
+            }
         });
     </script>
 {% endblock %}
@@ -346,12 +375,23 @@
                                         </div>
                                     {% endif %}
                                     
-                                    {% if question.question_type == 'sc' or question.question_type == 'mcq' %}
+                                    {% if question.question_type == 'sc' %}
                                         {% if question.options and question.options|length > 0 %}
                                             <div class="options-container">
                                                 {% for option in question.options %}
                                                     <div class="option-item">
-                                                        <input type="radio" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" {% if question.question_type == 'sc' %}required{% endif %}>
+                                                        <input type="radio" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" required>
+                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{{ option|default:'無選項' }}</label>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% elif question.question_type == 'mcq' %}
+                                        {% if question.options and question.options|length > 0 %}
+                                            <div class="options-container">
+                                                {% for option in question.options %}
+                                                    <div class="option-item">
+                                                        <input type="checkbox" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}">
                                                         <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{{ option|default:'無選項' }}</label>
                                                     </div>
                                                 {% endfor %}
@@ -368,15 +408,15 @@
                                                 <label for="q{{ question.id }}_false">錯誤 (False)</label>
                                             </div>
                                         </div>
-                                    {% elif question.question_type == 'essay' %}
+                                    {% elif question.question_type == 'sa' %}
                                         <div class="text-answer">
                                             <label for="answer_{{ question.id }}">請輸入您的答案：</label>
-                                            <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的答案..." required></textarea>
+                                            <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的答案..."></textarea>
                                         </div>
                                     {% else %}
                                         <div class="text-answer">
                                             <label for="answer_{{ question.id }}">請輸入您的答案：</label>
-                                            <input type="text" name="answers_{{ question.id }}" id="answer_{{ question.id }}" placeholder="請輸入答案..." required>
+                                            <input type="text" name="answers_{{ question.id }}" id="answer_{{ question.id }}" placeholder="請輸入答案...">
                                         </div>
                                     {% endif %}
                                 </div>

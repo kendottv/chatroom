@@ -6,7 +6,7 @@ from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.utils import timezone
 from django.db import IntegrityError
-from .models import CustomUser, ExamQuestion, ExamPaper, InteractionLog
+from .models import CustomUser, ExamQuestion, ExamPaper, InteractionLog, StudentExamHistory, ExamAnswer, ExamRecord
 from .forms import CustomLoginForm, CustomUserCreationForm, AvatarUpdateForm
 import bleach
 from django.utils.html import strip_tags
@@ -44,73 +44,104 @@ def exam(request):
             if paper_id:
                 try:
                     exam_paper = ExamPaper.objects.get(id=paper_id)
-                    questions = exam_paper.questions.all()
+                    # 檢查考試是否在時間範圍內
+                    if current_time < exam_paper.start_time or current_time > exam_paper.end_time:
+                        messages.error(request, "考試時間已過或尚未開始。")
+                        return redirect('exam')
+
+                    student = request.user
+                    answers = {}
+                    # 收集所有答案
+                    for key, value in request.POST.items():
+                        if key.startswith('answers_'):
+                            question_id = key.replace('answers_', '')
+                            if value:
+                                if request.POST.getlist(key):  # 處理多選題
+                                    answers[question_id] = request.POST.getlist(key)
+                                else:
+                                    answers[question_id] = value
+
+                    # 創建或更新 ExamRecord
+                    exam_record, created = ExamRecord.objects.update_or_create(
+                        student=student,
+                        exam_paper=exam_paper,
+                        defaults={'submitted_at': current_time, 'is_completed': True}
+                    )
+
                     total_score = 0
-                    answer_count = 0
-                    
+                    questions = exam_paper.questions.all()
                     for question in questions:
-                        answer_key = f'answers_{question.id}'
-                        answer = request.POST.get(answer_key, '').strip()
-                        
-                        if answer:
-                            answer_count += 1
-                            is_correct = False
-                            
-                            # 修復答案驗證邏輯
-                            if hasattr(question, 'correct_answer') and question.correct_answer is not None:
-                                print(f"Question {question.id}: type={question.question_type}, user_answer='{answer}', correct_answer='{question.correct_answer}'")
-                                
-                                if question.question_type == 'sc':
-                                    # 單選題：比較選項索引
-                                    try:
-                                        user_option_index = int(answer)
-                                        correct_option_index = int(question.correct_answer)
-                                        is_correct = user_option_index == correct_option_index
-                                        print(f"SC: user={user_option_index}, correct={correct_option_index}, is_correct={is_correct}")
-                                    except (ValueError, TypeError):
-                                        is_correct = False
-                                        
-                                elif question.question_type == 'mcq':
-                                    # 多選題：比較選項索引組合
-                                    try:
-                                        user_options = set(answer.split(',')) if ',' in answer else {answer}
-                                        correct_options = set(question.correct_answer.split(','))
-                                        is_correct = user_options == correct_options
-                                        print(f"MCQ: user={user_options}, correct={correct_options}, is_correct={is_correct}")
-                                    except:
-                                        is_correct = False
-                                        
-                                elif question.question_type == 'tf':
-                                    # 是非題：直接比較字符串
-                                    is_correct = answer.lower() == question.correct_answer.lower()
-                                    print(f"TF: user='{answer.lower()}', correct='{question.correct_answer.lower()}', is_correct={is_correct}")
-                                    
-                                elif question.question_type in ['sa', 'essay']:
-                                    # 簡答題和論述題：字符串比較（去除空格和大小寫）
-                                    is_correct = answer.lower().strip() == question.correct_answer.lower().strip()
-                                    print(f"SA/Essay: user='{answer.lower().strip()}', correct='{question.correct_answer.lower().strip()}', is_correct={is_correct}")
-                            
+                        question_id = str(question.id)
+                        student_answer = answers.get(question_id)
+                        is_correct = False
+
+                        # 處理空白答案
+                        if not student_answer or student_answer == ['']:
+                            student_answer = None
+
+                        # 驗證答案
+                        if student_answer is not None:
+                            correct_answer = question.correct_answer
+                            if question.question_type == 'sc':
+                                try:
+                                    user_option_index = int(student_answer[0]) if isinstance(student_answer, list) else int(student_answer)
+                                    correct_option_index = int(correct_answer) if correct_answer else None
+                                    is_correct = user_option_index == correct_option_index
+                                except (ValueError, TypeError):
+                                    is_correct = False
+                            elif question.question_type == 'mcq':
+                                try:
+                                    user_options = sorted(student_answer) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
+                                    correct_options = sorted(correct_answer.split(',')) if correct_answer else []
+                                    is_correct = user_options == correct_options
+                                except:
+                                    is_correct = False
+                            elif question.question_type == 'tf':
+                                is_correct = str(student_answer).lower() == str(correct_answer).lower()
+                            elif question.question_type in ['sa', 'essay']:
+                                is_correct = str(student_answer).strip().lower() == str(correct_answer).strip().lower() if student_answer else False
+
                             score = question.points if is_correct else 0
                             total_score += score
-                            
-                            InteractionLog.objects.create(
-                                user=request.user,
-                                question=f"題目: {question.title or question.content[:50]}..., 回答: {answer}",
-                                response=f"回答 {'正確' if is_correct else '錯誤' if hasattr(question, 'correct_answer') and question.correct_answer else '已記錄'}, 得分: {score}/{question.points}",
-                                exam_question=question,
-                                score=score
-                            )
-                    
-                    if answer_count == questions.count():
-                        messages.success(request, f"考卷提交成功！總得分: {total_score} / {exam_paper.total_points} 分")
-                        exam_paper.end_time = current_time
-                        exam_paper.save()
-                        return redirect('exam')
-                    elif answer_count > 0:
-                        messages.warning(request, f"部分題目已提交。目前得分: {total_score} 分，請檢查是否有遺漏的題目。")
-                    else:
-                        messages.error(request, "請至少回答一個問題後再提交。")
-                        
+                        else:
+                            score = 0
+
+                        # 儲存到 ExamAnswer
+                        ExamAnswer.objects.update_or_create(
+                            exam_record=exam_record,
+                            exam_question=question,
+                            defaults={
+                                'student_answer': str(student_answer) if student_answer else None,
+                                'score': score,
+                                'is_correct': is_correct
+                            }
+                        )
+
+                        # 記錄到 InteractionLog
+                        InteractionLog.objects.create(
+                            user=student,
+                            question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer or '未作答'}",
+                            response=f"回答 {'正確' if is_correct else '錯誤' if correct_answer else '已記錄'}, 得分: {score}/{question.points}",
+                            exam_question=question,
+                            score=score
+                        )
+
+                    # 更新考試歷史紀錄
+                    StudentExamHistory.objects.update_or_create(
+                        student=student,
+                        exam_paper=exam_paper,
+                        defaults={
+                            'total_score': total_score,
+                            'completed_at': current_time,
+                            'grade': 'A' if total_score >= 90 else 'B' if total_score >= 80 else 'C'
+                        }
+                    )
+
+                    exam_record.score = total_score
+                    exam_record.save()
+                    messages.success(request, f"考試 '{exam_paper.title}' 已提交，總分 {total_score} / {exam_paper.total_points} 分！")
+                    return redirect('exam')
+
                 except ExamPaper.DoesNotExist:
                     messages.error(request, "考卷不存在。")
                 except Exception as e:
@@ -144,14 +175,6 @@ def exam(request):
         messages.info(request, "目前沒有進行中的考試。請聯繫管理員或檢查時間設置。")
     
     return render(request, 'exam.html', {'exam_papers': available_papers})
-
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from django.utils import timezone
-from django.db import IntegrityError
-from django.core.exceptions import ObjectDoesNotExist
-from .models import ExamQuestion, ExamPaper, InteractionLog
-import bleach
 
 def teacher_exam(request):
     """
@@ -377,6 +400,46 @@ def teacher_exam(request):
         'question_to_edit': question_to_edit,
         'question_types': question_types
     })
+
+
+
+def student_exam_history(request):
+    """
+    顯示每個學生的每個考試的每個題目答題紀錄。
+    僅限已認證且具有管理權限的用戶訪問。
+    """
+    if not request.user.is_authenticated or not request.user.is_staff:
+        messages.error(request, "您無權限訪問此頁面。")
+        return redirect('teacher_exam')
+
+    # 獲取所有學生的考試歷史
+    histories = StudentExamHistory.objects.all().order_by('-completed_at')
+    detailed_records = []
+
+    for history in histories:
+        exam_answers = ExamAnswer.objects.filter(exam_record__student=history.student, exam_record__exam_paper=history.exam_paper)
+        questions_with_answers = []
+        for answer in exam_answers:
+            question = ExamQuestion.objects.get(id=answer.exam_question.id)
+            questions_with_answers.append({
+                'question_title': question.title,
+                'question_content': question.content,
+                'student_answer': answer.student_answer,
+                'score': answer.score,
+                'is_correct': answer.is_correct,
+                'question_type': question.question_type,
+            })
+        detailed_records.append({
+            'student_id': history.student.student_id,
+            'exam_title': history.exam_paper.title,
+            'total_score': history.total_score,
+            'completed_at': history.completed_at,
+            'answers': questions_with_answers,
+        })
+
+    return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
+
+
 def readme(request):
     return render(request, 'readme.html')  # ReadMe 頁
 

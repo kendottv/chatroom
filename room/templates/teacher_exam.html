@@ -229,7 +229,7 @@
                                         </div>
                                     {% elif question.question_type == "tf" %}
                                         <div class="mt-2" style="font-size: 14px; color: #28a745;">
-                                            <strong>答案:</strong> {{ question.correct_answer|yesno:"True,False" }}
+                                            <strong>答案:</strong> {{ question.correct_answer|yesno:"True,False" }} (Debug: {{ question.correct_answer }})
                                         </div>
                                     {% elif question.question_type == "sa" %}
                                         {% if question.correct_answer %}
@@ -516,9 +516,6 @@
                     shortAnswerContainer.style.display = 'block';
                 } else if (questionType === 'tf') {
                     trueFalseContainer.style.display = 'block';
-                    if (!document.querySelector('input[name="correct_answer"]:checked')) {
-                        document.getElementById('answer_false').checked = true;
-                    }
                 } else if (questionType === 'sc') {
                     optionsContainer.style.display = 'block';
                     scAnswers.forEach(radio => radio.style.display = 'inline');

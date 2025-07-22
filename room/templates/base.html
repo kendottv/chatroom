@@ -232,9 +232,9 @@
         <div class="sidebar">
             <h2>計算機概論</h2>
             <a href="{% url 'home' %}">🏠 首頁</a>
-            <a href="{% url 'readme' %}">📖 ReadMe</a>
             <a href="{% url 'exam' %}">📝 考試</a>
             <a href="{% url 'history' %}">⏳ 歷史</a>
+            <a href="{% url 'readme' %}">📖 ReadMe</a>
             <a href="{% url 'profile' %}">👤 個人資料</a>
             {% if not user.is_authenticated %}
                 <a href="{% url 'login' %}">🔑 登入</a>
@@ -248,6 +248,7 @@
             {% endif %}
             {% if user.is_authenticated and user.is_staff %}
                 <a href="{% url 'teacher_exam' %}">📝 出題</a>
+                <a href="{% url 'student_exam_history' %}">📋 學生考試歷史</a>
             {% endif %}
         </div>
 

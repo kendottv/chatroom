@@ -34,4 +34,5 @@ urlpatterns = [
     path('ask_ai/', views.ask_ai, name='ask_ai'),  # AI 提問
     path('upload_question/', views.upload_question, name='upload_question'),  # 出題提交
     path('ask_exam_question/', views.ask_exam_question, name='ask_exam_question'),  # 回答問題
+    path('student_exam_history/', views.student_exam_history, name='student_exam_history'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
