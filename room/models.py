@@ -1,4 +1,3 @@
-# room/models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -20,7 +19,7 @@ class CustomUser(AbstractUser):
 # 考試題目模型
 class ExamQuestion(models.Model):
     QUESTION_TYPES = (
-        ('sc', 'Single Choice'),  # 新增單選題型
+        ('sc', 'Single Choice'),
         ('mcq', 'Multiple Choice'),
         ('tf', 'True/False'),
         ('sa', 'Short Answer'),
@@ -34,9 +33,6 @@ class ExamQuestion(models.Model):
     points = models.IntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="配分")
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
     image = models.ImageField(upload_to='questions/', null=True, blank=True, verbose_name="題目圖片")
-    publish_time = models.DateTimeField(default=timezone.now, verbose_name="發佈時間")
-    start_time = models.DateTimeField(default=timezone.now, verbose_name="開始時間")
-    end_time = models.DateTimeField(default=timezone.now, verbose_name="截止時間")
 
     def __str__(self):
         return self.title
@@ -55,8 +51,8 @@ class ExamPaper(models.Model):
     start_time = models.DateTimeField(default=timezone.now, verbose_name="開始時間")
     end_time = models.DateTimeField(default=timezone.now, verbose_name="截止時間")
     pdf_file = models.FileField(upload_to='exam_papers/', null=True, blank=True, verbose_name="考卷 PDF")
-    duration_minutes = models.IntegerField(default=60, validators=[MinValueValidator(1)], verbose_name="考試持續時間（分鐘）")  # 新增欄位
-    description = models.TextField(blank=True, default='', verbose_name="考試描述")  # 新增欄位
+    duration_minutes = models.IntegerField(default=60, validators=[MinValueValidator(1)], verbose_name="考試持續時間（分鐘）")
+    description = models.TextField(blank=True, default='', verbose_name="考試描述")
 
     def __str__(self):
         return self.title

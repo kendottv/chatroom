@@ -5,12 +5,12 @@ from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.utils import timezone
+from django.db import IntegrityError
 from .models import CustomUser, ExamQuestion, ExamPaper, InteractionLog
 from .forms import CustomLoginForm, CustomUserCreationForm, AvatarUpdateForm
 import bleach
 from django.utils.html import strip_tags
 import re
-
 def home(request):
     return render(request, 'home.html')  # 首頁
 
@@ -145,140 +145,174 @@ def exam(request):
     
     return render(request, 'exam.html', {'exam_papers': available_papers})
 
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.utils import timezone
+from django.db import IntegrityError
+from django.core.exceptions import ObjectDoesNotExist
+from .models import ExamQuestion, ExamPaper, InteractionLog
+import bleach
+
 def teacher_exam(request):
+    """
+    處理教師出題頁面，包括新增/編輯題目、題目庫管理及創建考試。
+    僅限授權教師訪問。
+    """
     if not request.user.is_authenticated or not request.user.is_staff:
         messages.error(request, "您無權限訪問此頁面。")
         return render(request, 'teacher_exam.html')
-    
+
+    # 確保 all_questions 和 question_types 總是定義
     all_questions = ExamQuestion.objects.filter(created_by=request.user)
+    question_types = {'sc': '單選題', 'mcq': '多選題', 'tf': '是非題', 'sa': '簡答題'}
     question_to_edit = None
 
     if request.method == 'POST':
-        if 'question_text' in request.POST:  # 新增或編輯題目
+        print("POST data:", dict(request.POST))
+        print("FILES data:", dict(request.FILES))
+
+        # 處理新增或編輯題目
+        if 'question_text' in request.POST:
             question_id = request.POST.get('question_id')
-            title = request.POST.get('title', '無題目標題')
-            # 清理 HTML 標籤，僅允許 <p> 標籤並移除空 <p>
-            content = bleach.clean(request.POST.get('question_text', ''), tags=['p'], strip=True)
-            content = re.sub(r'<p>\s*</p>', '', content)  # 移除空 <p> 標籤
-            content = strip_tags(content).strip() or '<p>' + strip_tags(content).strip() + '</p>'  # 確保至少有一個有效段落
-            question_type = request.POST.get('question_type', 'sa')
+            title = request.POST.get('title', '無題目標題').strip()
             
-            # 修復選項處理邏輯
-            options = []
-            for i in range(1, 5):  # 選項1到選項4
-                option_value = request.POST.get(f'option_{i}', '').strip()
-                if option_value:
-                    options.append(option_value)
+            raw_content = request.POST.get('question_text', '').strip()
+            print(f"Raw content: '{raw_content}'")
             
-            # 如果是選擇題但沒有選項，添加預設選項
-            if question_type in ['sc', 'mcq'] and not options:
-                options = ['選項1', '選項2', '選項3', '選項4']
-            
-            # 修復正確答案處理邏輯
-            correct_answer = None
-            if question_type == 'mcq':
-                # 多選題：獲取所有選中的選項索引
-                correct_options = request.POST.getlist('correct_options')
-                print(f"MCQ correct_options received: {correct_options}")
+            if not raw_content:
+                messages.error(request, "題目內容不能為空。")
+            else:
+                content = bleach.clean(raw_content, tags=['p'], strip=True)
+                if not content.startswith('<p>'):
+                    content = f'<p>{content}</p>'
                 
-                # 驗證選項索引有效性
-                valid_options = []
-                for opt_idx in correct_options:
-                    try:
-                        idx = int(opt_idx)
-                        if 0 <= idx < len(options):
-                            valid_options.append(str(idx))
-                    except (ValueError, TypeError):
-                        continue
-                
-                if valid_options:
-                    correct_answer = ','.join(sorted(valid_options))
-                    print(f"MCQ correct_answer saved: {correct_answer}")
-                
-            elif question_type == 'sc':
-                # 單選題：獲取選中的選項索引
-                correct_option = request.POST.get('correct_option')
-                print(f"SC correct_option received: {correct_option}")
-                
-                if correct_option is not None:
-                    try:
-                        idx = int(correct_option)
-                        if 0 <= idx < len(options):
-                            correct_answer = str(idx)
-                            print(f"SC correct_answer saved: {correct_answer}")
-                    except (ValueError, TypeError):
-                        pass
-                        
-            elif question_type == 'tf':
-                # 是非題
-                tf_answer = request.POST.get('correct_answer', '').lower()
-                correct_answer = 'true' if tf_answer in ['true', '1', 't'] else 'false'
-                print(f"TF correct_answer saved: {correct_answer}")
-                
-            else:  # sa, essay
-                # 簡答題或論述題
-                correct_answer = request.POST.get('correct_answer', '').strip() or None
-            
-            max_attempts = int(request.POST.get('max_attempts', 1))
-            points = int(request.POST.get('points', 10))
-            image = request.FILES.get('image') if 'image' in request.FILES else None
+                question_type = request.POST.get('question_type', 'sa')
+                print(f"Question type: {question_type}")
 
-            print(f"Final data - Options: {options}, Correct Answer: {correct_answer}")
+                options = []
+                if question_type in ['sc', 'mcq']:
+                    for i in range(1, 5):
+                        option_value = request.POST.get(f'option_{i}', '').strip()
+                        if option_value:
+                            options.append(option_value)
+                    if not options and question_type in ['sc', 'mcq']:
+                        messages.error(request, "請至少填寫一個選項。")
+                        return render(request, 'teacher_exam.html', {
+                            'all_questions': all_questions,
+                            'question_to_edit': question_to_edit,
+                            'question_types': question_types
+                        })
 
-            if question_id:  # 編輯現有題目
-                exam_question = get_object_or_404(ExamQuestion, id=question_id, created_by=request.user)
-                exam_question.title = title
-                exam_question.content = content
-                exam_question.question_type = question_type
-                exam_question.options = options if options else None
-                exam_question.correct_answer = correct_answer
-                exam_question.max_attempts = max_attempts
-                exam_question.points = points
-                if image:
-                    exam_question.image = image
-                exam_question.save()
-                messages.success(request, f"題目 '{title}' 已成功更新！")
-                print(f"Updated question {question_id}: options={exam_question.options}, correct_answer={exam_question.correct_answer}")
+                correct_answer = None
+                if question_type == 'mcq':
+                    correct_options = request.POST.getlist('correct_options')
+                    print(f"MCQ correct options: {correct_options}")
+                    if correct_options:
+                        valid_options = [str(idx) for idx in map(int, correct_options) if 0 <= idx < len(options)]
+                        if valid_options:
+                            correct_answer = ','.join(sorted(valid_options))
                 
-            else:  # 新增題目
-                exam_question = ExamQuestion.objects.create(
-                    title=title,
-                    content=content,
-                    question_type=question_type,
-                    options=options if options else None,
-                    correct_answer=correct_answer,
-                    max_attempts=max_attempts,
-                    points=points,
-                    created_by=request.user,
-                    image=image
-                )
-                InteractionLog.objects.create(
-                    user=request.user,
-                    question=f"題目: {content}",
-                    response="題目已成功創建",
-                    exam_question=exam_question
-                )
-                messages.success(request, f"題目 '{title}' 已成功創建！")
-                print(f"Created question {exam_question.id}: options={exam_question.options}, correct_answer={exam_question.correct_answer}")
+                elif question_type == 'sc':
+                    correct_option = request.POST.get('correct_option')
+                    print(f"SC correct option: {correct_option}")
+                    if correct_option is not None:
+                        try:
+                            idx = int(correct_option)
+                            if 0 <= idx < len(options):
+                                correct_answer = str(idx)
+                        except (ValueError, TypeError):
+                            pass
                 
-        elif 'exam_title' in request.POST:  # 創建考試
-            exam_title = request.POST.get('exam_title')
+                elif question_type == 'tf':
+                    tf_answer = request.POST.get('correct_answer', '').strip().lower()
+                    print(f"TF answer: '{tf_answer}'")
+                    if tf_answer in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']:
+                        correct_answer = 'true'
+                    elif tf_answer in ['false', '0', 'f', 'no', 'n', '否', '錯', '錯誤']:
+                        correct_answer = 'false'
+                    else:
+                        correct_answer = 'false'
+                
+                else:  # sa
+                    sa_answer = request.POST.get('correct_answer', '').strip()
+                    print(f"SA answer: '{sa_answer}'")
+                    correct_answer = sa_answer if sa_answer else None
+
+                try:
+                    max_attempts = int(request.POST.get('max_attempts', 1))
+                    points = int(request.POST.get('points', 10))
+                    if max_attempts < 1 or points < 0 or points > 100:
+                        raise ValueError("無效的嘗試次數或配分")
+                except (ValueError, TypeError) as e:
+                    messages.error(request, f"無效的嘗試次數或配分：{str(e)}")
+                    return render(request, 'teacher_exam.html', {
+                        'all_questions': all_questions,
+                        'question_to_edit': question_to_edit,
+                        'question_types': question_types
+                    })
+
+                image = request.FILES.get('image') if 'image' in request.FILES else None
+
+                print(f"Final data - Title: {title}, Content: {content}, Type: {question_type}")
+                print(f"Options: {options}, Correct answer: {correct_answer}")
+
+                try:
+                    if question_id:
+                        exam_question = get_object_or_404(ExamQuestion, id=question_id, created_by=request.user)
+                        exam_question.title = title
+                        exam_question.content = content
+                        exam_question.question_type = question_type
+                        exam_question.options = options if options else None
+                        exam_question.correct_answer = correct_answer
+                        exam_question.max_attempts = max_attempts
+                        exam_question.points = points
+                        if image:
+                            exam_question.image = image
+                        exam_question.save()
+                        messages.success(request, f"題目 '{title}' 已成功更新！")
+                        print(f"Question updated: {exam_question.id}")
+                    else:
+                        exam_question = ExamQuestion.objects.create(
+                            title=title,
+                            content=content,
+                            question_type=question_type,
+                            options=options if options else None,
+                            correct_answer=correct_answer,
+                            max_attempts=max_attempts,
+                            points=points,
+                            created_by=request.user,
+                            image=image
+                        )
+                        print(f"Question created: {exam_question.id}")
+                        InteractionLog.objects.create(
+                            user=request.user,
+                            question=f"題目: {content}",
+                            response="題目已成功創建",
+                            exam_question=exam_question
+                        )
+                        messages.success(request, f"題目 '{title}' 已成功創建！")
+                except IntegrityError as e:
+                    messages.error(request, "資料庫錯誤，請確保所有字段有效。")
+                    print(f"Database error: {str(e)}")
+                except Exception as e:
+                    messages.error(request, f"創建/更新失敗：{str(e)}")
+                    print(f"Error creating/updating question: {str(e)}")
+
+        # 處理創建考試
+        elif 'exam_title' in request.POST:
+            exam_title = request.POST.get('exam_title').strip()
             selected_questions_str = request.POST.get('selected_questions', '').strip()
-            print(f"Received selected_questions string: {selected_questions_str}")
-    
+
             if not selected_questions_str:
                 messages.error(request, "請選擇至少一個題目。")
             else:
                 try:
-                    # 分割並轉換為整數列表
                     question_ids = [int(qid) for qid in selected_questions_str.split(',') if qid.strip()]
-                    print(f"Converted question_ids: {question_ids}")
                     valid_questions = ExamQuestion.objects.filter(id__in=question_ids, created_by=request.user)
-                    print(f"Valid questions count: {valid_questions.count()}, IDs: {[q.id for q in valid_questions]}")
                     if not valid_questions.exists():
                         messages.error(request, f"所選題目無效或無權限。檢查 ID: {question_ids}")
                     else:
-                        total_points = sum(int(q.points) for q in valid_questions)
+                        total_points = sum(q.points for q in valid_questions)
                         publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
@@ -295,21 +329,20 @@ def teacher_exam(request):
                                 start_time=start_time,
                                 end_time=end_time,
                                 duration_minutes=duration_minutes,
-                                description=request.POST.get('exam_description', '')
+                                description=request.POST.get('exam_description', '').strip()
                             )
                             exam_paper.questions.set(valid_questions)
-                            print(f"Set questions for paper {exam_paper.id}: {exam_paper.questions.count()}")
                             messages.success(request, f"考卷 '{exam_title}' 已成功創建！")
                 except ValueError as e:
                     messages.error(request, f"時間或題目 ID 格式錯誤：{str(e)}")
-                    print(f"ValueError details: {e}, input was: {selected_questions_str}")
-        elif 'delete_question' in request.POST:  # 刪除題目
+
+        # 處理刪除題目
+        elif 'delete_question' in request.POST:
             question_ids = request.POST.getlist('delete_questions')
-            print(f"Received delete question_ids: {question_ids}")
             if question_ids:
                 try:
                     question_ids = [int(qid) for qid in question_ids if qid.strip()]
-                    deleted_count = ExamQuestion.objects.filter(id__in=question_ids, created_by=request.user).delete()[0]
+                    deleted_count, _ = ExamQuestion.objects.filter(id__in=question_ids, created_by=request.user).delete()
                     if deleted_count > 0:
                         messages.success(request, f"成功刪除 {deleted_count} 個題目！")
                     else:
@@ -318,42 +351,32 @@ def teacher_exam(request):
                     messages.error(request, f"題目 ID 格式錯誤：{str(e)}")
             else:
                 messages.error(request, "請選擇至少一個題目進行刪除。")
+        
+        else:
+            print("No matching POST condition found")
+            print("Available POST keys:", list(request.POST.keys()))
 
-    # 處理編輯題目的邏輯
+    # 處理編輯題目
     edit_id = request.GET.get('edit')
     if edit_id:
         question_to_edit = get_object_or_404(ExamQuestion, id=edit_id, created_by=request.user)
-        
-        # 確保選項數據完整性
         if question_to_edit.options is None:
             question_to_edit.options = ['', '', '', '']
-        else:
-            # 確保有4個選項位置供編輯
-            while len(question_to_edit.options) < 4:
-                question_to_edit.options.append('')
-        
-        # 處理內容為空的情況
+        while len(question_to_edit.options) < 4:
+            question_to_edit.options.append('')
         if question_to_edit.content is None:
             question_to_edit.content = ''
-        
-        # 處理多選題的正確答案列表
         if question_to_edit.question_type == 'mcq' and question_to_edit.correct_answer:
             try:
                 question_to_edit.correct_answer_list = question_to_edit.correct_answer.split(',')
             except:
                 question_to_edit.correct_answer_list = []
-        else:
-            question_to_edit.correct_answer_list = []
-            
-        print(f"Editing question {edit_id}: options={question_to_edit.options}, correct_answer={question_to_edit.correct_answer}, type={question_to_edit.question_type}")
 
-    question_types = dict(ExamQuestion.QUESTION_TYPES)
     return render(request, 'teacher_exam.html', {
-        'all_questions': all_questions, 
-        'question_types': question_types, 
-        'question_to_edit': question_to_edit
+        'all_questions': all_questions,
+        'question_to_edit': question_to_edit,
+        'question_types': question_types
     })
-
 def readme(request):
     return render(request, 'readme.html')  # ReadMe 頁
 

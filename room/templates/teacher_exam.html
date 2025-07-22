@@ -7,17 +7,8 @@
 
     <!-- 自訂樣式 -->
     <style>
-        .tab-content { 
-            padding: 20px; 
-            background-color: #fff; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1); 
-            margin-bottom: 20px; 
-            display: none; /* 預設隱藏所有標籤頁內容 */
-        }
-        .tab-content.active { 
-            display: block; /* 只顯示活動的標籤頁 */
-        }
+        .tab-content { padding: 20px; background-color: #fff; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 20px; display: none; }
+        .tab-content.active { display: block; }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-button { padding: 10px 20px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; color: #1e355b; cursor: pointer; }
         .tab-button.active { background-color: #1e355b; color: white; border-color: #1e355b; }
@@ -41,18 +32,8 @@
         th { background-color: #f2f2f2; }
         body.dark-mode table { border-color: #444; }
         body.dark-mode th { background-color: #333; }
-        .question-content { 
-            background-color: #f8f9fa; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 10px 0; 
-            font-size: 14px; 
-            line-height: 1.4;
-        }
-        body.dark-mode .question-content { 
-            background-color: #333; 
-            color: #e0e0e0; 
-        }
+        .question-content { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; font-size: 14px; line-height: 1.4; }
+        body.dark-mode .question-content { background-color: #333; color: #e0e0e0; }
     </style>
 
     <div class="content">
@@ -66,7 +47,12 @@
         <!-- 新增題目標籤頁 -->
         <div id="create-question" class="tab-content active">
             <h3>新增題目</h3>
-            <form method="post" enctype="multipart/form-data" class="row g-3" onsubmit="return validateForm()">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            <form method="post" action="{% url 'teacher_exam' %}" enctype="multipart/form-data" class="row g-3" onsubmit="console.log('Form submission triggered'); return validateForm();">
                 {% csrf_token %}
                 {% if question_to_edit %}
                     <input type="hidden" name="question_id" value="{{ question_to_edit.id }}" class="col-12">
@@ -94,47 +80,51 @@
                     </div>
                 </div>
                 
-                <!-- 修復後的選項部分 -->
+                <!-- 選項部分 -->
                 <div class="options col-12" id="options_container" style="display: none;">
                     <h4>選項：</h4>
                     {% for i in "1234" %}
                         <div class="form-group option-input-group">
                             <span class="answer-selector">
-                                <!-- 單選題的正確答案選擇 -->
                                 <input type="radio" name="correct_option" value="{{ forloop.counter0 }}" 
                                     {% if question_to_edit and question_to_edit.correct_answer == forloop.counter0|stringformat:"s" %}checked{% endif %} 
                                     class="sc-answer">
-                    
-                                <!-- 多選題的正確答案選擇 -->
                                 <input type="checkbox" name="correct_options" value="{{ forloop.counter0 }}" 
                                     {% if question_to_edit and question_to_edit.correct_answer_list and forloop.counter0|stringformat:"s" in question_to_edit.correct_answer_list %}checked{% endif %} 
                                     class="mcq-answer" style="display: none;">
-                    
                                 <label>正確答案</label>
                             </span>
-                            <!-- 修復選項顯示邏輯 - 使用視圖提供的選項數據 -->
                             <input type="text" name="option_{{ forloop.counter }}" 
                                 value="{% if question_to_edit.options %}{% if forloop.counter == 1 %}{{ question_to_edit.options.0|default:'' }}{% elif forloop.counter == 2 %}{{ question_to_edit.options.1|default:'' }}{% elif forloop.counter == 3 %}{{ question_to_edit.options.2|default:'' }}{% elif forloop.counter == 4 %}{{ question_to_edit.options.3|default:'' }}{% endif %}{% endif %}" 
                                 class="form-control option-input" 
                                 placeholder="選項 {{ forloop.counter }}" 
-                                required>
+                                {% if not question_to_edit %}disabled{% elif question_to_edit.question_type == "sc" or question_to_edit.question_type == "mcq" %}{% else %}disabled{% endif %}>
                         </div>
                     {% endfor %}
                 </div>
                 
+                <!-- 真假題答案 -->
                 <div class="options col-12" id="true_false_container" style="display: none;">
                     <h4>答案：</h4>
                     <div class="form-group">
                         <div class="form-check">
-                            <input type="radio" name="correct_answer" value="true" {% if question_to_edit and question_to_edit.correct_answer == 'true' %}checked{% endif %} class="form-check-input">
-                            <label class="form-check-label">True</label>
+                            <input type="radio" name="correct_answer" value="true" {% if question_to_edit and question_to_edit.correct_answer == 'true' %}checked{% endif %} class="form-check-input" id="answer_true">
+                            <label class="form-check-label" for="answer_true">True</label>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="form-check">
-                            <input type="radio" name="correct_answer" value="false" {% if question_to_edit and question_to_edit.correct_answer == 'false' %}checked{% endif %} class="form-check-input">
-                            <label class="form-check-label">False</label>
+                            <input type="radio" name="correct_answer" value="false" {% if question_to_edit and question_to_edit.correct_answer == 'false' %}checked{% endif %} class="form-check-input" id="answer_false">
+                            <label class="form-check-label" for="answer_false">False</label>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- 簡答題答案 -->
+                <div class="options col-12" id="short_answer_container" style="display: none;">
+                    <h4>參考答案（選填）：</h4>
+                    <div class="form-group">
+                        <textarea name="correct_answer" class="form-control" rows="3" placeholder="請輸入參考答案（可選）">{% if question_to_edit and question_to_edit.correct_answer %}{{ question_to_edit.correct_answer }}{% endif %}</textarea>
                     </div>
                 </div>
                 
@@ -220,7 +210,7 @@
                                         {{ question.content|safe }}
                                     </div>
                                     
-                                    {% if question.options and question.question_type == "sc" or question.question_type == "mcq" %}
+                                    {% if question.options and question.question_type == "sc" or question.options and question.question_type == "mcq" %}
                                         <div class="mt-2" style="font-size: 14px; color: #666;">
                                             <strong>選項:</strong>
                                             {% for option in question.options %}
@@ -266,7 +256,7 @@
         <!-- 創建考試標籤頁 -->
         <div id="create-exam" class="tab-content">
             <h3>創建考試</h3>
-            <form method="post" id="exam-form" class="row g-3">
+            <form method="post" action="{% url 'teacher_exam' %}" id="exam-form" class="row g-3">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create_exam">
                 
@@ -317,6 +307,7 @@
         </div>
     </div>
 
+    <!-- 引入 Quill JS -->
     <script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
     <script>
         let selectedQuestions = [];
@@ -474,63 +465,96 @@
 
         // Quill 編輯器初始化
         document.addEventListener("DOMContentLoaded", function () {
-            var quill = new Quill('#editor-container', {
-                theme: 'snow',
-                modules: {
-                    toolbar: [['bold', 'italic', 'underline'], ['link', 'image'], [{'list': 'ordered'}, {'list': 'bullet'}]]
-                },
-                formats: ['bold', 'italic', 'underline', 'link', 'image', 'list', 'bullet'],
-                placeholder: '請輸入題目內容'
-            });
+            try {
+                var quill = new Quill('#editor-container', {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [['bold', 'italic', 'underline'], ['link', 'image'], [{'list': 'ordered'}, {'list': 'bullet'}]]
+                    },
+                    formats: ['bold', 'italic', 'underline', 'link', 'image', 'list', 'bullet'],
+                    placeholder: '請輸入題目內容'
+                });
 
-            var initialContent = document.getElementById('editor-container').innerHTML;
-            if (initialContent.trim() === '' || initialContent === '<p>請輸入題目內容</p>') {
-                quill.setContents([{ insert: '\n' }]);
-            } else {
-                quill.root.innerHTML = initialContent;
-            }
-            document.getElementById('hidden_question').value = quill.root.innerHTML;
-
-            quill.on('text-change', function () {
+                var initialContent = document.getElementById('editor-container').innerHTML.trim();
+                console.log('Initial Quill content:', initialContent);
+                if (!initialContent || initialContent === '<p>請輸入題目內容</p>' || initialContent === '<p><br></p>') {
+                    quill.setContents([{ insert: '\n' }]);
+                } else {
+                    quill.root.innerHTML = initialContent;
+                }
                 document.getElementById('hidden_question').value = quill.root.innerHTML;
-            });
 
-            const questionType = document.getElementById('question_type');
-            const optionsContainer = document.getElementById('options_container');
-            const trueFalseContainer = document.getElementById('true_false_container');
+                quill.on('text-change', function () {
+                    document.getElementById('hidden_question').value = quill.root.innerHTML;
+                    console.log('Text changed:', quill.root.innerHTML);
+                });
+            } catch (e) {
+                console.error('Quill initialization failed:', e);
+            }
 
+            // 表單類型更新函數
             function updateForm() {
+                const questionType = document.getElementById('question_type').value;
+                console.log('Updating form for type:', questionType);
                 const optionsContainer = document.getElementById('options_container');
                 const trueFalseContainer = document.getElementById('true_false_container');
+                const shortAnswerContainer = document.getElementById('short_answer_container');
+                const optionInputs = document.querySelectorAll('.option-input');
                 const scAnswers = document.querySelectorAll('.sc-answer');
                 const mcqAnswers = document.querySelectorAll('.mcq-answer');
                 
-                if (questionType.value === 'sa') {
-                    optionsContainer.style.display = 'none';
-                    trueFalseContainer.style.display = 'none';
-                } else if (questionType.value === 'tf') {
-                    optionsContainer.style.display = 'none';
+                optionsContainer.style.display = 'none';
+                trueFalseContainer.style.display = 'none';
+                shortAnswerContainer.style.display = 'none';
+                
+                optionInputs.forEach(input => {
+                    input.removeAttribute('required');
+                    input.disabled = true;
+                });
+
+                if (questionType === 'sa') {
+                    shortAnswerContainer.style.display = 'block';
+                } else if (questionType === 'tf') {
                     trueFalseContainer.style.display = 'block';
-                } else if (questionType.value === 'sc') {
+                    if (!document.querySelector('input[name="correct_answer"]:checked')) {
+                        document.getElementById('answer_false').checked = true;
+                    }
+                } else if (questionType === 'sc') {
                     optionsContainer.style.display = 'block';
-                    trueFalseContainer.style.display = 'none';
                     scAnswers.forEach(radio => radio.style.display = 'inline');
                     mcqAnswers.forEach(checkbox => checkbox.style.display = 'none');
-                } else if (questionType.value === 'mcq') {
+                    optionInputs.forEach(input => {
+                        input.setAttribute('required', '');
+                        input.disabled = false;
+                    });
+                } else if (questionType === 'mcq') {
                     optionsContainer.style.display = 'block';
-                    trueFalseContainer.style.display = 'none';
                     scAnswers.forEach(radio => radio.style.display = 'none');
                     mcqAnswers.forEach(checkbox => checkbox.style.display = 'inline');
+                    optionInputs.forEach(input => {
+                        input.setAttribute('required', '');
+                        input.disabled = false;
+                    });
                 }
             }
 
             updateForm();
-            questionType.addEventListener('change', updateForm);
+            document.getElementById('question_type').addEventListener('change', updateForm);
+            window.updateForm = updateForm;
         });
 
         // 表單驗證
         function validateForm() {
             const questionType = document.getElementById('question_type').value;
+            const questionText = document.getElementById('hidden_question').value.trim();
+            console.log('Validating form:', { questionType, questionText });
+
+            if (!questionText || questionText === '<p></p>' || questionText === '<p><br></p>') {
+                console.log('Validation failed: Empty question content');
+                alert('請輸入題目內容！');
+                return false;
+            }
+
             if (questionType === 'sc' || questionType === 'mcq') {
                 const optionInputs = document.querySelectorAll('.option-input');
                 let hasValue = false;
@@ -540,10 +564,44 @@
                     }
                 });
                 if (!hasValue) {
+                    console.log('Validation failed: No options provided');
                     alert('請至少填寫一個選項！');
                     return false;
                 }
+
+                if (questionType === 'sc') {
+                    const checkedRadio = document.querySelector('input[name="correct_option"]:checked');
+                    if (!checkedRadio) {
+                        console.log('Validation failed: No correct option selected for SC');
+                        alert('請選擇單選題的正確答案！');
+                        return false;
+                    }
+                } else if (questionType === 'mcq') {
+                    const checkedCheckboxes = document.querySelectorAll('input[name="correct_options"]:checked');
+                    if (checkedCheckboxes.length === 0) {
+                        console.log('Validation failed: No correct options selected for MCQ');
+                        alert('請選擇至少一個多選題的正確答案！');
+                        return false;
+                    }
+                }
+            } else if (questionType === 'tf') {
+                const tfRadios = document.querySelectorAll('input[name="correct_answer"]:checked');
+                console.log('TF radios checked:', tfRadios.length);
+                if (tfRadios.length === 0) {
+                    console.log('Validation failed: No TF answer selected');
+                    alert('請選擇是非題的正確答案！');
+                    return false;
+                }
+            } else if (questionType === 'sa') {
+                const saAnswer = document.querySelector('textarea[name="correct_answer"]').value.trim();
+                console.log('SA answer:', saAnswer);
+                if (!saAnswer && !confirm('簡答題未填寫參考答案，確定繼續？')) {
+                    console.log('Validation failed: SA answer confirmation cancelled');
+                    return false;
+                }
             }
+
+            console.log('Validation passed');
             return true;
         }
     </script>
