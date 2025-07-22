@@ -87,10 +87,10 @@
                         <div class="form-group option-input-group">
                             <span class="answer-selector">
                                 <input type="radio" name="correct_option" value="{{ forloop.counter0 }}" 
-                                    {% if question_to_edit and question_to_edit.correct_answer == forloop.counter0|stringformat:"s" %}checked{% endif %} 
+                                    {% if question_to_edit and question_to_edit.correct_option_indices == forloop.counter0|stringformat:"s" %}checked{% endif %} 
                                     class="sc-answer">
                                 <input type="checkbox" name="correct_options" value="{{ forloop.counter0 }}" 
-                                    {% if question_to_edit and question_to_edit.correct_answer_list and forloop.counter0|stringformat:"s" in question_to_edit.correct_answer_list %}checked{% endif %} 
+                                    {% if question_to_edit and question_to_edit.correct_answer == forloop.counter0|stringformat:"s" %}checked{% endif %}  
                                     class="mcq-answer" style="display: none;">
                                 <label>正確答案</label>
                             </span>
@@ -108,13 +108,13 @@
                     <h4>答案：</h4>
                     <div class="form-group">
                         <div class="form-check">
-                            <input type="radio" name="correct_answer" value="true" {% if question_to_edit and question_to_edit.correct_answer == 'true' %}checked{% endif %} class="form-check-input" id="answer_true">
+                            <input type="radio" name="correct_answer" value="true" {% if question_to_edit and question_to_edit.is_correct == True %}checked{% endif %} class="form-check-input" id="answer_true">
                             <label class="form-check-label" for="answer_true">True</label>
                         </div>
                     </div>
                     <div class="form-group">
                         <div class="form-check">
-                            <input type="radio" name="correct_answer" value="false" {% if question_to_edit and question_to_edit.correct_answer == 'false' %}checked{% endif %} class="form-check-input" id="answer_false">
+                            <input type="radio" name="correct_answer" value="false" {% if question_to_edit and question_to_edit.is_correct == False %}checked{% endif %} class="form-check-input" id="answer_false">
                             <label class="form-check-label" for="answer_false">False</label>
                         </div>
                     </div>
@@ -124,7 +124,7 @@
                 <div class="options col-12" id="short_answer_container" style="display: none;">
                     <h4>參考答案（選填）：</h4>
                     <div class="form-group">
-                        <textarea name="correct_answer" class="form-control" rows="3" placeholder="請輸入參考答案（可選）">{% if question_to_edit and question_to_edit.correct_answer %}{{ question_to_edit.correct_answer }}{% endif %}</textarea>
+                        <textarea name="correct_answer" class="form-control" rows="3" placeholder="請輸入參考答案（可選）">{% if question_to_edit and question_to_edit.correct_option_indices %}{{ question_to_edit.correct_option_indices }}{% endif %}</textarea>
                     </div>
                 </div>
                 
@@ -220,21 +220,26 @@
                                         <div class="mt-2" style="font-size: 14px; color: #28a745;">
                                             <strong>正確答案:</strong>
                                             {% if question.question_type == "sc" %}
-                                                選項 {{ question.correct_answer|add:1 }}
+                                                選項 {{ question.correct_option_indices|add:1 }}
                                             {% elif question.question_type == "mcq" %}
-                                                {% for idx in question.correct_answer_list %}
-                                                    選項 {{ idx|add:1 }}{% if not forloop.last %}, {% endif %}
-                                                {% endfor %}
-                                            {% endif %}
+                                                <!-- 使用 view 中處理過的選項索引列表 -->
+                                                {% if question.correct_option_indices_list %}
+                                                    {% for idx in question.correct_option_indices_list %}
+                                                        選項 {{ idx|add:1 }}{% if not forloop.last %}, {% endif %}
+                                                    {% endfor %}
+                                                {% else %}
+                                                    {{ question.correct_option_indices }}
+                                                {% endif %}
+                                            {% endif %} (Debug: {{ question.correct_option_indices|default:'None' }})
                                         </div>
                                     {% elif question.question_type == "tf" %}
                                         <div class="mt-2" style="font-size: 14px; color: #28a745;">
-                                            <strong>答案:</strong> {{ question.correct_answer|yesno:"True,False" }} (Debug: {{ question.correct_answer }})
+                                            <strong>答案:</strong> {{ question.is_correct|yesno:"True,False" }} (Debug: {{ question.is_correct|default:'None' }})
                                         </div>
                                     {% elif question.question_type == "sa" %}
-                                        {% if question.correct_answer %}
+                                        {% if question.correct_option_indices %}
                                             <div class="mt-2" style="font-size: 14px; color: #28a745;">
-                                                <strong>參考答案:</strong> {{ question.correct_answer }}
+                                                <strong>參考答案:</strong> {{ question.correct_option_indices }}
                                             </div>
                                         {% endif %}
                                     {% endif %}

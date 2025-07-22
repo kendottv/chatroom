@@ -14,7 +14,6 @@ import re
 def home(request):
     return render(request, 'home.html')  # 首頁
 
-# 修復 exam 函數中的答案驗證邏輯
 def exam(request):
     if not request.user.is_authenticated:
         return render(request, 'login.html')
@@ -81,25 +80,25 @@ def exam(request):
 
                         # 驗證答案
                         if student_answer is not None:
-                            correct_answer = question.correct_answer
                             if question.question_type == 'sc':
                                 try:
                                     user_option_index = int(student_answer[0]) if isinstance(student_answer, list) else int(student_answer)
-                                    correct_option_index = int(correct_answer) if correct_answer else None
+                                    correct_option_index = int(question.correct_option_indices) if question.correct_option_indices else None
                                     is_correct = user_option_index == correct_option_index
                                 except (ValueError, TypeError):
                                     is_correct = False
                             elif question.question_type == 'mcq':
                                 try:
                                     user_options = sorted(student_answer) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
-                                    correct_options = sorted(correct_answer.split(',')) if correct_answer else []
+                                    correct_options = sorted(question.correct_option_indices.split(',')) if question.correct_option_indices else []
                                     is_correct = user_options == correct_options
                                 except:
                                     is_correct = False
                             elif question.question_type == 'tf':
-                                is_correct = str(student_answer).lower() == str(correct_answer).lower()
+                                student_bool = str(student_answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']
+                                is_correct = student_bool == question.is_correct
                             elif question.question_type in ['sa', 'essay']:
-                                is_correct = str(student_answer).strip().lower() == str(correct_answer).strip().lower() if student_answer else False
+                                is_correct = str(student_answer).strip().lower() == str(question.correct_option_indices).strip().lower() if question.correct_option_indices else False
 
                             score = question.points if is_correct else 0
                             total_score += score
@@ -121,7 +120,7 @@ def exam(request):
                         InteractionLog.objects.create(
                             user=student,
                             question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer or '未作答'}",
-                            response=f"回答 {'正確' if is_correct else '錯誤' if correct_answer else '已記錄'}, 得分: {score}/{question.points}",
+                            response=f"回答 {'正確' if is_correct else '錯誤' if question.correct_option_indices or question.is_correct else '已記錄'}, 得分: {score}/{question.points}",
                             exam_question=question,
                             score=score
                         )
@@ -226,14 +225,15 @@ def teacher_exam(request):
                             'question_types': question_types
                         })
 
-                correct_answer = None
+                is_correct = None
+                correct_option_indices = None
                 if question_type == 'mcq':
                     correct_options = request.POST.getlist('correct_options')
                     print(f"MCQ correct options: {correct_options}")
                     if correct_options:
                         valid_options = [str(idx) for idx in map(int, correct_options) if 0 <= idx < len(options)]
                         if valid_options:
-                            correct_answer = ','.join(sorted(valid_options))
+                            correct_option_indices = ','.join(sorted(valid_options))
                 
                 elif question_type == 'sc':
                     correct_option = request.POST.get('correct_option')
@@ -242,7 +242,7 @@ def teacher_exam(request):
                         try:
                             idx = int(correct_option)
                             if 0 <= idx < len(options):
-                                correct_answer = str(idx)
+                                correct_option_indices = str(idx)
                         except (ValueError, TypeError):
                             pass
                 
@@ -250,16 +250,16 @@ def teacher_exam(request):
                     tf_answer = request.POST.get('correct_answer', '').strip().lower()
                     print(f"TF answer: '{tf_answer}'")
                     if tf_answer in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']:
-                        correct_answer = 'true'
+                        is_correct = True
                     elif tf_answer in ['false', '0', 'f', 'no', 'n', '否', '錯', '錯誤']:
-                        correct_answer = 'false'
+                        is_correct = False
                     else:
-                        correct_answer = 'false'
+                        is_correct = False
                 
                 else:  # sa
                     sa_answer = request.POST.get('correct_answer', '').strip()
                     print(f"SA answer: '{sa_answer}'")
-                    correct_answer = sa_answer if sa_answer else None
+                    correct_option_indices = sa_answer if sa_answer else None
 
                 try:
                     max_attempts = int(request.POST.get('max_attempts', 1))
@@ -277,7 +277,7 @@ def teacher_exam(request):
                 image = request.FILES.get('image') if 'image' in request.FILES else None
 
                 print(f"Final data - Title: {title}, Content: {content}, Type: {question_type}")
-                print(f"Options: {options}, Correct answer: {correct_answer}")
+                print(f"Options: {options}, is_correct: {is_correct}, correct_option_indices: {correct_option_indices}")
 
                 try:
                     if question_id:
@@ -286,7 +286,8 @@ def teacher_exam(request):
                         exam_question.content = content
                         exam_question.question_type = question_type
                         exam_question.options = options if options else None
-                        exam_question.correct_answer = correct_answer
+                        exam_question.is_correct = is_correct
+                        exam_question.correct_option_indices = correct_option_indices
                         exam_question.max_attempts = max_attempts
                         exam_question.points = points
                         if image:
@@ -300,7 +301,8 @@ def teacher_exam(request):
                             content=content,
                             question_type=question_type,
                             options=options if options else None,
-                            correct_answer=correct_answer,
+                            is_correct=is_correct,
+                            correct_option_indices=correct_option_indices,
                             max_attempts=max_attempts,
                             points=points,
                             created_by=request.user,
@@ -383,15 +385,16 @@ def teacher_exam(request):
     edit_id = request.GET.get('edit')
     if edit_id:
         question_to_edit = get_object_or_404(ExamQuestion, id=edit_id, created_by=request.user)
+        print(f"Editing question {edit_id}, is_correct: {question_to_edit.is_correct}, correct_option_indices: {question_to_edit.correct_option_indices}, type of is_correct: {type(question_to_edit.is_correct)}, type of correct_option_indices: {type(question_to_edit.correct_option_indices)}")
         if question_to_edit.options is None:
             question_to_edit.options = ['', '', '', '']
         while len(question_to_edit.options) < 4:
             question_to_edit.options.append('')
         if question_to_edit.content is None:
             question_to_edit.content = ''
-        if question_to_edit.question_type == 'mcq' and question_to_edit.correct_answer:
+        if question_to_edit.question_type == 'mcq' and question_to_edit.correct_option_indices:
             try:
-                question_to_edit.correct_answer_list = question_to_edit.correct_answer.split(',')
+                question_to_edit.correct_answer_list = question_to_edit.correct_option_indices.split(',')
             except:
                 question_to_edit.correct_answer_list = []
 
@@ -400,8 +403,6 @@ def teacher_exam(request):
         'question_to_edit': question_to_edit,
         'question_types': question_types
     })
-
-
 
 def student_exam_history(request):
     """
