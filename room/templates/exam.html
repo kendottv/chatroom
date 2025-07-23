@@ -1,85 +1,228 @@
-{% extends 'base.html' %}
-
-{% block title %}考試{% endblock %}
-
-{% block extra_head %}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考試</title>
     <style>
+        /* 全局樣式與主題變數 */
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --border-color: #ddd;
+            --ai-border-color: #4CAF50;
+            --exam-border-color: #008CBA;
+            --ai-bg-gradient: linear-gradient(135deg, #f0f8ff 0%, #e8f5e8 100%);
+            --exam-bg-gradient: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
+            --btn-bg: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            --submit-btn-bg: linear-gradient(135deg, #008CBA 0%, #007B9A 100%);
+            --end-btn-bg: linear-gradient(135deg, #f44336 0%, #da190b 100%);
+        }
+
+        /* 夜間模式 */
+        [data-theme="dark"] {
+            --bg-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --border-color: #444;
+            --ai-border-color: #6fbf73;
+            --exam-border-color: #33a6cc;
+            --ai-bg-gradient: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+            --exam-bg-gradient: linear-gradient(135deg, #252525 0%, #2d2d2d 100%);
+            --btn-bg: linear-gradient(135deg, #6fbf73 0%, #5aa663 100%);
+            --submit-btn-bg: linear-gradient(135deg, #33a6cc 0%, #2989a9 100%);
+            --end-btn-bg: linear-gradient(135deg, #ff6659 0%, #e03e2d 100%);
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s;
+        }
+
+        /* 導航欄 */
+        nav {
+            background-color: #333;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav a {
+            color: white;
+            margin-right: 20px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        /* 資訊欄 */
+        .info-bar {
+            background-color: #f8f9fa;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 20px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        [data-theme="dark"] .info-bar {
+            background-color: #2a2a2a;
+            color: #bbb;
+        }
+
+        /* 考試容器 */
         .exam-container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
-            height: 90vh;
-            display: flex;
-            gap: 20px;
+            height: 85vh;
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 25px;
+            box-sizing: border-box;
         }
 
+        /* AI 問答區域（左側） */
         .ai-section {
-            flex: 1 1 50%;
-            border: 2px solid #ddd;
-            border-radius: 10px;
+            flex: 0 0 45% !important;
+            border: 2px solid var(--ai-border-color);
+            border-radius: 12px;
             padding: 20px;
-            background-color: #f0f8ff;
+            background: var(--ai-bg-gradient);
             overflow-y: auto;
             position: relative;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-sizing: border-box;
         }
 
+        /* 考卷區域（右側） */
         .exam-paper-section {
-            flex: 1 1 50%;
-            border: 2px solid #ddd;
-            border-radius: 10px;
+            flex: 0 0 55% !important;
+            border: 2px solid var(--exam-border-color);
+            border-radius: 12px;
             padding: 20px;
-            background-color: #f9f9f9;
+            background: var(--exam-bg-gradient);
             overflow-y: auto;
             position: relative;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-sizing: border-box;
         }
 
+        /* 分隔線 */
+        .divider {
+            width: 3px;
+            background: linear-gradient(to bottom, var(--ai-border-color), var(--exam-border-color));
+            border-radius: 2px;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+
+        /* AI 區域標題 */
         .ai-title {
-            color: #008CBA;
+            color: var(--ai-border-color);
             margin-bottom: 15px;
+            font-size: 20px;
+            border-bottom: 2px solid var(--ai-border-color);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .ai-description {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-align: center;
+            background-color: rgba(255,255,255,0.7);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        [data-theme="dark"] .ai-description {
+            background-color: rgba(0,0,0,0.7);
+            color: #ccc;
         }
 
         .ai-input {
             width: 100%;
-            min-height: 100px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-bottom: 10px;
+            min-height: 120px;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 15px;
             resize: vertical;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            background-color: rgba(255,255,255,0.9);
+        }
+
+        [data-theme="dark"] .ai-input {
+            background-color: rgba(0,0,0,0.9);
+            color: #e0e0e0;
+        }
+
+        .ai-input:focus {
+            border-color: var(--ai-border-color);
+            outline: none;
+            box-shadow: 0 0 5px rgba(76,175,80,0.3);
         }
 
         .ai-btn {
-            padding: 10px 20px;
-            background-color: #4CAF50;
+            width: 100%;
+            padding: 12px 20px;
+            background: var(--btn-bg);
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
         }
 
         .ai-btn:hover {
-            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76,175,80,0.4);
         }
 
         .ai-response {
-            margin-top: 15px;
+            margin-top: 20px;
             padding: 15px;
-            background-color: white;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            min-height: 50px;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
         }
 
+        [data-theme="dark"] .ai-response {
+            background-color: rgba(0,0,0,0.9);
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        /* 考卷區域標題 */
         .exam-header {
             text-align: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #008CBA;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid var(--exam-border-color);
         }
 
         .exam-title {
-            color: #008CBA;
+            color: var(--exam-border-color);
             margin-bottom: 10px;
+            font-size: 22px;
         }
 
         .exam-info {
@@ -87,31 +230,70 @@
             font-size: 14px;
         }
 
+        [data-theme="dark"] .exam-info {
+            color: #bbb;
+        }
+
         .question-container {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
             background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        [data-theme="dark"] .question-container {
+            background-color: #2d2d2d;
+            border-color: #555;
+        }
+
+        .question-container:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-color: var(--exam-border-color);
         }
 
         .question-header {
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .question-number {
             font-weight: bold;
-            color: #008CBA;
+            color: var(--exam-border-color);
+            font-size: 16px;
+        }
+
+        .question-points {
+            color: #666;
+            font-size: 14px;
+            background-color: #f0f8ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        [data-theme="dark"] .question-points {
+            background-color: #2a2a2a;
+            color: #bbb;
         }
 
         .question-title {
             font-weight: bold;
-            margin: 5px 0;
+            margin: 8px 0;
+            color: var(--text-color);
         }
 
         .question-content {
-            margin: 10px 0;
+            margin: 12px 0;
             line-height: 1.6;
+            color: #444;
+        }
+
+        [data-theme="dark"] .question-content {
+            color: #ccc;
         }
 
         .question-image {
@@ -122,8 +304,9 @@
         .question-image img {
             max-width: 100%;
             height: auto;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .options-container {
@@ -131,27 +314,36 @@
         }
 
         .option-item {
-            margin: 8px 0;
-            padding: 8px;
-            border-radius: 5px;
-            transition: background-color 0.2s;
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            border: 1px solid transparent;
         }
 
         .option-item:hover {
             background-color: #f0f8ff;
+            border-color: var(--exam-border-color);
         }
 
-        .option-item input[type="radio"] {
-            margin-right: 10px;
+        [data-theme="dark"] .option-item:hover {
+            background-color: #2a2a2a;
         }
 
+        .option-item input[type="radio"],
         .option-item input[type="checkbox"] {
-            margin-right: 10px;
+            margin-right: 12px;
+            transform: scale(1.2);
         }
 
         .option-item label {
             cursor: pointer;
             font-weight: normal;
+            color: #444;
+        }
+
+        [data-theme="dark"] .option-item label {
+            color: #ccc;
         }
 
         .text-answer {
@@ -161,40 +353,58 @@
         .text-answer input[type="text"],
         .text-answer textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
             font-size: 14px;
+            transition: border-color 0.3s;
+            background-color: rgba(255,255,255,0.9);
+        }
+
+        [data-theme="dark"] .text-answer input[type="text"],
+        [data-theme="dark"] .text-answer textarea {
+            background-color: rgba(0,0,0,0.9);
+            color: #e0e0e0;
+        }
+
+        .text-answer input[type="text"]:focus,
+        .text-answer textarea:focus {
+            border-color: var(--exam-border-color);
+            outline: none;
+            box-shadow: 0 0 5px rgba(0,140,186,0.3);
         }
 
         .submit-section {
             text-align: center;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 2px solid #ddd;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 3px solid var(--border-color);
         }
 
         .submit-btn {
-            padding: 10px 25px;
-            background-color: #008CBA;
+            padding: 12px 30px;
+            background: var(--submit-btn-bg);
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: bold;
             margin: 0 10px;
+            transition: all 0.3s;
         }
 
         .submit-btn:hover {
-            background-color: #007B9A;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,140,186,0.4);
         }
 
         .end-btn {
-            background-color: #f44336;
+            background: var(--end-btn-bg);
         }
 
         .end-btn:hover {
-            background-color: #da190b;
+            box-shadow: 0 4px 12px rgba(244,67,54,0.4);
         }
 
         .no-exam-message {
@@ -204,14 +414,18 @@
             font-size: 18px;
         }
 
+        [data-theme="dark"] .no-exam-message {
+            color: #bbb;
+        }
+
         .messages {
             margin-bottom: 20px;
         }
 
         .messages p {
-            padding: 10px;
-            border-radius: 5px;
-            margin: 5px 0;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 8px 0;
         }
 
         .messages .error {
@@ -232,17 +446,36 @@
             border: 1px solid #bbdefb;
         }
 
-        /* 響應式設計 */
-        @media (max-width: 768px) {
-            .exam-container {
-                flex-direction: column;
-                height: auto;
-            }
+        [data-theme="dark"] .messages .error {
+            background-color: #3d1b1b;
+            color: #ffcccc;
+            border-color: #662222;
+        }
 
-            .ai-section,
-            .exam-paper-section {
-                flex: 1 1 100%;
-            }
+        [data-theme="dark"] .messages .success {
+            background-color: #1b2d1b;
+            color: #ccffcc;
+            border-color: #226622;
+        }
+
+        [data-theme="dark"] .messages .info {
+            background-color: #1b2d3d;
+            color: #cce0ff;
+            border-color: #225566;
+        }
+
+        /* 腳注 */
+        .footer {
+            text-align: center;
+            padding: 10px;
+            color: #1e355b;
+            font-size: 14px;
+            background: inherit;
+        }
+
+        body.dark-mode .footer {
+            background: #121212 !important;
+            color: #a1b6d6; /* 夜間模式下調整文字顏色與背景協調 */
         }
     </style>
     <script>
@@ -254,23 +487,23 @@
             }
             
             const responseDiv = document.getElementById('ai-response');
-            responseDiv.innerHTML = '正在處理您的問題...';
+            responseDiv.innerHTML = '🤖 正在處理您的問題，請稍候...';
             
             fetch('/exam/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token }}'
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
                 body: `ai_question=${encodeURIComponent(question)}`
             })
             .then(response => response.json())
             .then(data => {
-                responseDiv.innerHTML = data.response || '無法獲得回應';
+                responseDiv.innerHTML = data.response || '無法獲得回應，請稍後再試。';
             })
             .catch(error => {
                 console.error('Error:', error);
-                responseDiv.innerHTML = '發生錯誤，請稍後再試';
+                responseDiv.innerHTML = '❌ 發生錯誤，請檢查網路連接或稍後再試。';
             });
         }
 
@@ -291,9 +524,22 @@
             }
         }
 
+        // 夜間模式切換
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            if (currentTheme === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // 根據系統偏好或 localStorage 設置主題
         document.addEventListener('DOMContentLoaded', function() {
             console.log('考試頁面已載入');
-            // 收集所有答案並填入隱藏輸入框
             const submitForm = document.querySelector('form');
             if (submitForm) {
                 submitForm.addEventListener('submit', function(event) {
@@ -305,8 +551,8 @@
                             answers[questionId] = Array.from(checked).map(cb => cb.value);
                         } else if (input.type === 'radio' && input.checked) {
                             answers[questionId] = input.value;
-                        } else if (input.type === 'text' || input.type === 'textarea') {
-                            answers[questionId] = input.value || null; // 允許空白
+                        } else if (input.type === 'text' || input.tagName === 'TEXTAREA') {
+                            answers[questionId] = input.value || null;
                         }
                     });
                     const hiddenInput = document.createElement('input');
@@ -316,23 +562,74 @@
                     submitForm.appendChild(hiddenInput);
                 });
             }
+
+            // 檢查系統偏好
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+            // 檢查 localStorage
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.body.setAttribute('data-theme', savedTheme);
+            }
+
+            // 添加主題切換按鈕
+            const themeToggle = document.createElement('button');
+            themeToggle.innerHTML = '🌙 切換主題';
+            themeToggle.style.cssText = 'position: fixed; top: 10px; right: 10px; padding: 8px 16px; background: var(--btn-bg); color: white; border: none; border-radius: 8px; cursor: pointer;';
+            themeToggle.addEventListener('click', toggleTheme);
+            document.body.appendChild(themeToggle);
         });
     </script>
-{% endblock %}
+</head>
+<body>
+    <!-- 簡單導航欄 -->
+    <nav>
+        <div>
+            <a href="/" style="margin-right: 20px;">首頁</a>
+            <a href="/exam/" style="margin-right: 20px;">考試</a>
+            <a href="/logout/">登出</a>
+        </div>
+    </nav>
 
-{% block content %}
+    <!-- 資訊欄 -->
+    <div class="info-bar">
+        <span>學號: {{ user.student_id }}</span>
+        <span>姓名: {{ user.username }}</span>
+        <span>班級: {{ user.class_name }}</span>
+    </div>
+
+    <!-- 考試容器 -->
     <div class="exam-container">
-        <!-- AI 問答區域（左半） -->
+        <!-- AI 問答區域（左側） -->
         <div class="ai-section">
             <h3 class="ai-title">🤖 AI 問答助手</h3>
-            <p style="color: #666; margin-bottom: 15px;">如果您在考試過程中有疑問，可以向 AI 助手提問</p>
-            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：這道題目的關鍵概念是什麼？"></textarea>
-            <button onclick="askAI()" class="ai-btn">💬 提問</button>
-            <div id="ai-response" class="ai-response">AI 回應將顯示在這裡...</div>
+            <div class="ai-description">
+                如果您在考試過程中有疑問，可以向 AI 助手提問獲得幫助
+            </div>
+            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：
+• 這道題目的關鍵概念是什麼？
+• 我應該如何理解這個問題？
+• 能否解釋一下相關知識點？"></textarea>
+            <button onclick="askAI()" class="ai-btn">💬 向 AI 提問</button>
+            <div id="ai-response" class="ai-response">
+                AI 回應將顯示在這裡...
+                <br><br>
+                💡 <strong>使用提示：</strong>
+                <ul style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                    <li>提問要具體明確</li>
+                    <li>可以詢問概念解釋</li>
+                    <li>可以請求解題思路</li>
+                </ul>
+            </div>
         </div>
 
-        <!-- 做題區域（右半） -->
+        <!-- 分隔線 -->
+        <div class="divider"></div>
+
+        <!-- 考卷區域（右側） -->
         <div class="exam-paper-section">
+            <!-- 顯示訊息 -->
             {% if messages %}
                 <div class="messages">
                     {% for message in messages %}
@@ -340,15 +637,18 @@
                     {% endfor %}
                 </div>
             {% endif %}
-            
+
+            <!-- 除錯資訊 -->
+            <p>Debug: exam_papers count = {{ exam_papers|length }}</p>
             {% if exam_papers %}
                 {% for paper in exam_papers %}
+                    <p>Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions</p>
                     <div class="exam-paper">
                         <div class="exam-header">
-                            <h3 class="exam-title">{{ paper.title }}</h3>
+                            <h3 class="exam-title">📝 {{ paper.title }}</h3>
                             <div class="exam-info">
-                                <p>總分：{{ paper.total_points }} 分</p>
-                                <p>題目數量：{{ paper.questions.count }} 題</p>
+                                <p><strong>總分：</strong>{{ paper.total_points }} 分</p>
+                                <p><strong>題目數量：</strong>{{ paper.questions.count }} 題</p>
                             </div>
                         </div>
                         
@@ -359,8 +659,8 @@
                             {% for question in paper.questions.all %}
                                 <div class="question-container">
                                     <div class="question-header">
-                                        <span class="question-number">第 {{ forloop.counter }} 題</span>
-                                        <span style="float: right; color: #666;">({{ question.points }} 分)</span>
+                                        <span class="question-number">📌 第 {{ forloop.counter }} 題</span>
+                                        <span class="question-points">{{ question.points }} 分</span>
                                     </div>
                                     
                                     {% if question.title %}
@@ -401,21 +701,21 @@
                                         <div class="options-container">
                                             <div class="option-item">
                                                 <input type="radio" name="answers_{{ question.id }}" value="true" id="q{{ question.id }}_true" required>
-                                                <label for="q{{ question.id }}_true">正確 (True)</label>
+                                                <label for="q{{ question.id }}_true">✅ 正確 (True)</label>
                                             </div>
                                             <div class="option-item">
                                                 <input type="radio" name="answers_{{ question.id }}" value="false" id="q{{ question.id }}_false" required>
-                                                <label for="q{{ question.id }}_false">錯誤 (False)</label>
+                                                <label for="q{{ question.id }}_false">❌ 錯誤 (False)</label>
                                             </div>
                                         </div>
                                     {% elif question.question_type == 'sa' %}
                                         <div class="text-answer">
-                                            <label for="answer_{{ question.id }}">請輸入您的答案：</label>
-                                            <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的答案..."></textarea>
+                                            <label for="answer_{{ question.id }}"><strong>請輸入您的答案：</strong></label>
+                                            <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的詳細答案..."></textarea>
                                         </div>
                                     {% else %}
                                         <div class="text-answer">
-                                            <label for="answer_{{ question.id }}">請輸入您的答案：</label>
+                                            <label for="answer_{{ question.id }}"><strong>請輸入您的答案：</strong></label>
                                             <input type="text" name="answers_{{ question.id }}" id="answer_{{ question.id }}" placeholder="請輸入答案...">
                                         </div>
                                     {% endif %}
@@ -423,9 +723,9 @@
                             {% endfor %}
                             
                             <div class="submit-section">
-                                <button type="submit" class="submit-btn">提交考卷</button>
+                                <button type="submit" class="submit-btn">📤 提交考卷</button>
                                 {% if user.is_staff %}
-                                    <button type="submit" name="end_exam" value="1" class="submit-btn end-btn">結束考試</button>
+                                    <button type="submit" name="end_exam" value="1" class="submit-btn end-btn">🔚 結束考試</button>
                                 {% endif %}
                             </div>
                         </form>
@@ -433,10 +733,14 @@
                 {% endfor %}
             {% else %}
                 <div class="no-exam-message">
-                    <h3>目前沒有可用的考試</h3>
+                    <h3>📋 目前沒有可用的考試</h3>
                     <p>請聯繫管理員或稍後再試</p>
                 </div>
             {% endif %}
         </div>
     </div>
-{% endblock %}
+
+    <!-- 腳注 -->
+    <div class="footer">期末專案 © 2025</div>
+</body>
+</html>
