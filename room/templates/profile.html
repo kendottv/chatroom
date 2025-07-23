@@ -20,10 +20,12 @@
 
             <!-- 顯示考試成績 -->
             <h4>考試成績</h4>
-            {% if exam_scores %}
+            {% if exam_records %}
                 <ul>
-                    {% for score in exam_scores %}
-                        <li>{{ score.exam_question__title }}: {{ score.score|default:"未評分" }} / {{ score.exam_question__points }} 分</li>
+                    {% for record in exam_records %}
+                        <li>{{ record.exam_paper.title }}: {{ record.score }} / {{ record.exam_paper.total_points }} 分
+                            {% if record.submitted_at %} (提交時間: {{ record.submitted_at|date:"Y-m-d H:i" }}){% endif %}
+                        </li>
                     {% endfor %}
                 </ul>
             {% else %}

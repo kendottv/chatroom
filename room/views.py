@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.views import LogoutView
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.utils import timezone
@@ -450,14 +451,14 @@ def history(request):
     history_records = InteractionLog.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'history.html', {'history_records': history_records})  # 歷史頁
 
+@login_required
 def profile(request):
     if not request.user.is_authenticated:
         return render(request, 'login.html')
     
-    exam_scores = InteractionLog.objects.filter(user=request.user, exam_question__isnull=False).values(
-        'exam_question__title', 'score', 'exam_question__points'
-    )
-    
+    # 查詢學生所有的考試紀錄，包含考卷名稱和總分，按提交時間倒序排序
+    exam_records = ExamRecord.objects.filter(student=request.user).select_related('exam_paper').order_by('-submitted_at')
+
     if request.method == 'POST':
         form = AvatarUpdateForm(request.POST, request.FILES, instance=request.user)
         if form.is_valid():
@@ -469,7 +470,7 @@ def profile(request):
 
     return render(request, 'profile.html', {
         'user': request.user,
-        'exam_scores': exam_scores,
+        'exam_records': exam_records,
         'avatar_form': form
     })
 

@@ -477,6 +477,11 @@
             background: #121212 !important;
             color: #a1b6d6; /* 夜間模式下調整文字顏色與背景協調 */
         }
+
+        /* 已完成考卷隱藏 */
+        .exam-paper.completed {
+            display: none;
+        }
     </style>
     <script>
         function askAI() {
@@ -579,6 +584,17 @@
             themeToggle.style.cssText = 'position: fixed; top: 10px; right: 10px; padding: 8px 16px; background: var(--btn-bg); color: white; border: none; border-radius: 8px; cursor: pointer;';
             themeToggle.addEventListener('click', toggleTheme);
             document.body.appendChild(themeToggle);
+
+            // 檢查考卷是否已完成
+            const examRecordsStr = '{{ exam_records|default:"{}" }}'.replace(/'/g, '"'); // 替換單引號為雙引號
+            const examRecords = JSON.parse(examRecordsStr); // 解析為 JavaScript 物件
+            const examPapers = document.querySelectorAll('.exam-paper');
+            examPapers.forEach(paper => {
+                const paperId = paper.querySelector('input[name="paper_id"]').value;
+                if (examRecords[paperId] && examRecords[paperId].is_completed) {
+                    paper.classList.add('completed');
+                }
+            });
         });
     </script>
 </head>
@@ -643,7 +659,7 @@
             {% if exam_papers %}
                 {% for paper in exam_papers %}
                     <p>Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions</p>
-                    <div class="exam-paper">
+                    <div class="exam-paper" data-paper-id="{{ paper.id }}">
                         <div class="exam-header">
                             <h3 class="exam-title">📝 {{ paper.title }}</h3>
                             <div class="exam-info">
