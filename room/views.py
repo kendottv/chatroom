@@ -12,6 +12,8 @@ from .forms import CustomLoginForm, CustomUserCreationForm, AvatarUpdateForm
 import bleach
 from django.utils.html import strip_tags
 import re
+
+
 def home(request):
     return render(request, 'home.html')  # 首頁
 
