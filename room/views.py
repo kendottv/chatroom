@@ -405,6 +405,7 @@ def teacher_exam(request):
         'question_types': question_types
     })
 
+@login_required
 def student_exam_history(request):
     """
     顯示每個學生的每個考試的每個題目答題紀錄。
@@ -419,25 +420,82 @@ def student_exam_history(request):
     detailed_records = []
 
     for history in histories:
-        exam_answers = ExamAnswer.objects.filter(exam_record__student=history.student, exam_record__exam_paper=history.exam_paper)
-        questions_with_answers = []
-        for answer in exam_answers:
-            question = ExamQuestion.objects.get(id=answer.exam_question.id)
-            questions_with_answers.append({
-                'question_title': question.title,
-                'question_content': question.content,
-                'student_answer': answer.student_answer,
-                'score': answer.score,
-                'is_correct': answer.is_correct,
-                'question_type': question.question_type,
+        # 根據 student 和 exam_paper 查詢對應的 ExamRecord
+        exam_record = ExamRecord.objects.filter(
+            student=history.student,
+            exam_paper=history.exam_paper
+        ).first()
+        
+        if exam_record:
+            exam_answers = exam_record.answer_details.all()
+            questions_with_answers = []
+            for answer in exam_answers:
+                question = ExamQuestion.objects.get(id=answer.exam_question.id)
+                questions_with_answers.append({
+                    'question_title': question.title,
+                    'question_content': question.content,
+                    'student_answer': answer.student_answer,
+                    'score': answer.score,
+                    'is_correct': answer.is_correct,
+                    'question_type': question.question_type,
+                    'question_id': answer.exam_question.id,
+                    'points': question.points,  # 添加題目滿分
+                })
+            detailed_records.append({
+                'student_id': history.student.student_id,
+                'exam_title': history.exam_paper.title,
+                'total_score': history.total_score,
+                'completed_at': history.completed_at,
+                'answers': questions_with_answers,
             })
-        detailed_records.append({
-            'student_id': history.student.student_id,
-            'exam_title': history.exam_paper.title,
-            'total_score': history.total_score,
-            'completed_at': history.completed_at,
-            'answers': questions_with_answers,
-        })
+
+    if request.method == 'POST' and 'update_scores' in request.POST:
+        student_exam_key = request.POST['update_scores'].split('_')
+        student_id = student_exam_key[0]
+        exam_title = '_'.join(student_exam_key[1:])  # 處理可能的空格或特殊字符
+        history = StudentExamHistory.objects.filter(student__student_id=student_id, exam_paper__title=exam_title).first()
+
+        if not history:
+            messages.error(request, "找不到對應的考試歷史紀錄。")
+            return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
+
+        # 查詢對應的 ExamRecord
+        exam_record = ExamRecord.objects.filter(
+            student=history.student,
+            exam_paper=history.exam_paper
+        ).first()
+
+        if not exam_record:
+            messages.error(request, "找不到對應的考試紀錄。")
+            return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
+
+        total_score = 0
+        for answer in exam_record.answer_details.all():
+            question_title = answer.exam_question.title
+            new_score = request.POST.get(f'score_{question_title}')
+            if new_score is not None:
+                try:
+                    new_score = int(new_score)
+                    max_score = answer.exam_question.points
+                    if 0 <= new_score <= max_score:
+                        answer.score = new_score
+                        answer.is_correct = (new_score == max_score)  # 假設滿分表示正確
+                        answer.save()
+                        total_score += new_score
+                    else:
+                        messages.warning(request, f"題目 '{question_title}' 的調分 {new_score} 超出範圍 (0-{max_score})，未更新。")
+                except ValueError:
+                    messages.warning(request, f"題目 '{question_title}' 的調分無效，需為數字。")
+
+        # 更新總分
+        history.total_score = total_score
+        history.save()
+        exam_record.score = total_score
+        exam_record.save()
+        messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
+
+        # 重新加載數據以反映更新
+        return redirect('student_exam_history')
 
     return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
