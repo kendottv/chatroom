@@ -34,6 +34,7 @@ class ExamQuestion(models.Model):
     points = models.IntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="配分")
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
     image = models.ImageField(upload_to='questions/', null=True, blank=True, verbose_name="題目圖片")
+    ai_limit = models.PositiveIntegerField(default=0, verbose_name="AI 問答次數限制", help_text="0 表示無限制")  # 新增欄位
 
     def __str__(self):
         return self.title

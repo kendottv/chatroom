@@ -13,7 +13,6 @@ import bleach
 from django.utils.html import strip_tags
 import re
 
-
 def home(request):
     return render(request, 'home.html')  # 首頁
 
@@ -125,6 +124,7 @@ def exam(request):
                             question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer or '未作答'}",
                             response=f"回答 {'正確' if is_correct else '錯誤' if question.correct_option_indices or question.is_correct else '已記錄'}, 得分: {score}/{question.points}",
                             exam_question=question,
+                            exam_paper=exam_paper,  # 新增：記錄相關考卷
                             score=score
                         )
 
@@ -150,33 +150,24 @@ def exam(request):
                     messages.error(request, f"提交過程中發生錯誤：{str(e)}")
                     print(f"Exception in exam submission: {e}")
         
-        # 處理 AI 問答
-        elif 'ai_question' in request.POST:
-            ai_question = request.POST.get('ai_question', '').strip()
-            if ai_question:
-                ai_response = f"這是對 '{ai_question}' 的 AI 回覆（模擬）：請參考教材相關章節或與教師討論！"
-                InteractionLog.objects.create(
-                    user=request.user,
-                    question=ai_question,
-                    response=ai_response
-                )
-                return JsonResponse({'response': ai_response})
-            else:
-                return JsonResponse({'response': '請輸入問題內容'})
+        # 處理 AI 問答（移到獨立視圖 ask_ai）
 
-    # 獲取可用的考試卷，僅顯示未結束的考試
-    available_papers = ExamPaper.objects.filter(
-        publish_time__lte=current_time,
-        end_time__gt=current_time
-    ).prefetch_related('questions')
+    # 獲取所有考卷（包括已完成的），並檢查完成狀態
+    all_papers = ExamPaper.objects.all().prefetch_related('questions')
+    exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
+    exam_records_dict = {record['exam_paper_id']: {'is_completed': record['is_completed']} for record in exam_records}
+
+    # 過濾只顯示未結束的考試作為「可用的考卷」
+    available_papers = [paper for paper in all_papers if paper.publish_time <= current_time and paper.end_time > current_time]
     
-    # 除錯信息
-    for paper in available_papers:
-        print(f"ExamPaper {paper.id} - Title: {paper.title}, Questions: {paper.questions.count()}, Status: {'Active' if paper.end_time > current_time else 'Expired'}")
-    if not available_papers.exists():
+    if not available_papers:
         messages.info(request, "目前沒有進行中的考試。請聯繫管理員或檢查時間設置。")
     
-    return render(request, 'exam.html', {'exam_papers': available_papers})
+    return render(request, 'exam.html', {
+        'exam_papers': available_papers,
+        'exam_records': exam_records_dict,
+        'user': request.user,
+    })
 
 def teacher_exam(request):
     """
@@ -200,6 +191,7 @@ def teacher_exam(request):
         if 'question_text' in request.POST:
             question_id = request.POST.get('question_id')
             title = request.POST.get('title', '無題目標題').strip()
+            ai_limit = request.POST.get('ai_limit', '0').strip()  # 新增：AI 問答次數限制
             
             raw_content = request.POST.get('question_text', '').strip()
             print(f"Raw content: '{raw_content}'")
@@ -267,10 +259,11 @@ def teacher_exam(request):
                 try:
                     max_attempts = int(request.POST.get('max_attempts', 1))
                     points = int(request.POST.get('points', 10))
-                    if max_attempts < 1 or points < 0 or points > 100:
-                        raise ValueError("無效的嘗試次數或配分")
+                    ai_limit = int(ai_limit)  # 新增：轉換 ai_limit
+                    if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 0:
+                        raise ValueError("無效的嘗試次數、配分或 AI 問答次數限制")
                 except (ValueError, TypeError) as e:
-                    messages.error(request, f"無效的嘗試次數或配分：{str(e)}")
+                    messages.error(request, f"無效的嘗試次數、配分或 AI 問答次數限制：{str(e)}")
                     return render(request, 'teacher_exam.html', {
                         'all_questions': all_questions,
                         'question_to_edit': question_to_edit,
@@ -279,7 +272,7 @@ def teacher_exam(request):
 
                 image = request.FILES.get('image') if 'image' in request.FILES else None
 
-                print(f"Final data - Title: {title}, Content: {content}, Type: {question_type}")
+                print(f"Final data - Title: {title}, Content: {content}, Type: {question_type}, AI Limit: {ai_limit}")
                 print(f"Options: {options}, is_correct: {is_correct}, correct_option_indices: {correct_option_indices}")
 
                 try:
@@ -293,6 +286,7 @@ def teacher_exam(request):
                         exam_question.correct_option_indices = correct_option_indices
                         exam_question.max_attempts = max_attempts
                         exam_question.points = points
+                        exam_question.ai_limit = ai_limit  # 新增：儲存 ai_limit
                         if image:
                             exam_question.image = image
                         exam_question.save()
@@ -308,15 +302,17 @@ def teacher_exam(request):
                             correct_option_indices=correct_option_indices,
                             max_attempts=max_attempts,
                             points=points,
+                            ai_limit=ai_limit,  # 新增：儲存 ai_limit
                             created_by=request.user,
                             image=image
                         )
                         print(f"Question created: {exam_question.id}")
                         InteractionLog.objects.create(
                             user=request.user,
-                            question=f"題目: {content}",
+                            question=f"題目: {content}, AI 次數限制: {ai_limit}",
                             response="題目已成功創建",
-                            exam_question=exam_question
+                            exam_question=exam_question,
+                            exam_paper=None  # 新增：明確指定無考卷
                         )
                         messages.success(request, f"題目 '{title}' 已成功創建！")
                 except IntegrityError as e:
@@ -341,6 +337,7 @@ def teacher_exam(request):
                         messages.error(request, f"所選題目無效或無權限。檢查 ID: {question_ids}")
                     else:
                         total_points = sum(q.points for q in valid_questions)
+                        ai_total_limit = sum(q.ai_limit for q in valid_questions)  # 新增：計算總 AI 次數
                         publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
@@ -352,6 +349,7 @@ def teacher_exam(request):
                             exam_paper = ExamPaper.objects.create(
                                 title=exam_title,
                                 total_points=total_points,
+                                ai_total_limit=ai_total_limit,  # 新增：儲存總 AI 次數
                                 created_by=request.user,
                                 publish_time=publish_time,
                                 start_time=start_time,
@@ -441,7 +439,7 @@ def student_exam_history(request):
                     'is_correct': answer.is_correct,
                     'question_type': question.question_type,
                     'question_id': answer.exam_question.id,
-                    'points': question.points,  # 添加題目滿分
+                    'points': question.points,
                 })
             detailed_records.append({
                 'student_id': history.student.student_id,
@@ -454,7 +452,7 @@ def student_exam_history(request):
     if request.method == 'POST' and 'update_scores' in request.POST:
         student_exam_key = request.POST['update_scores'].split('_')
         student_id = student_exam_key[0]
-        exam_title = '_'.join(student_exam_key[1:])  # 處理可能的空格或特殊字符
+        exam_title = '_'.join(student_exam_key[1:])
         history = StudentExamHistory.objects.filter(student__student_id=student_id, exam_paper__title=exam_title).first()
 
         if not history:
@@ -481,7 +479,7 @@ def student_exam_history(request):
                     max_score = answer.exam_question.points
                     if 0 <= new_score <= max_score:
                         answer.score = new_score
-                        answer.is_correct = (new_score == max_score)  # 假設滿分表示正確
+                        answer.is_correct = (new_score == max_score)
                         answer.save()
                         total_score += new_score
                     else:
@@ -495,12 +493,9 @@ def student_exam_history(request):
         exam_record.score = total_score
         exam_record.save()
         messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
-
-        # 重新加載數據以反映更新
         return redirect('student_exam_history')
 
     return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
-
 
 def readme(request):
     return render(request, 'readme.html')  # ReadMe 頁
@@ -516,7 +511,6 @@ def profile(request):
     if not request.user.is_authenticated:
         return render(request, 'login.html')
     
-    # 查詢學生所有的考試紀錄，包含考卷名稱和總分，按提交時間倒序排序
     exam_records = ExamRecord.objects.filter(student=request.user).select_related('exam_paper').order_by('-submitted_at')
 
     if request.method == 'POST':
@@ -560,37 +554,54 @@ def register(request):
 
 def ask_ai(request):
     if request.method == 'POST':
-        prompt = request.POST.get('prompt', '')
-        response = f'這是對 "{prompt}" 的 AI 回覆（模擬）'
-        InteractionLog.objects.create(
-            user=request.user,
-            question=prompt,
-            response=response
-        )
-        return render(request, 'exam.html', {'response': response})
-    return HttpResponse("請使用 POST 方法提交提問。")
+        prompt = request.POST.get('prompt', '').strip()
+        paper_id = request.POST.get('paper_id', '').strip()
+        if not prompt or not paper_id:
+            return JsonResponse({'response': '請提供問題和考卷 ID'}, status=400)
+
+        try:
+            paper = ExamPaper.objects.get(id=paper_id)
+            used_count = InteractionLog.objects.filter(user=request.user, exam_paper=paper).count()
+            if paper.ai_total_limit > 0 and used_count >= paper.ai_total_limit:
+                return JsonResponse({'response': '已超過 AI 問答次數限制！'}, status=403)
+
+            # 模擬 AI 回應（可替換為真實 API）
+            response = f'這是對 "{prompt}" 的 AI 回覆（模擬）'
+            InteractionLog.objects.create(
+                user=request.user,
+                question=prompt,
+                response=response,
+                exam_paper=paper
+            )
+            return JsonResponse({'response': response})
+        except ExamPaper.DoesNotExist:
+            return JsonResponse({'response': '考卷不存在'}, status=404)
+    return JsonResponse({'response': '請使用 POST 方法提交提問'}, status=405)
 
 def upload_question(request):
     if request.method == 'POST' and request.user.is_staff:
         title = request.POST.get('title', '無題目標題')
         content = request.POST.get('question', '')
         max_attempts = request.POST.get('max_attempts', 1)
+        ai_limit = request.POST.get('ai_limit', 0)  # 新增：AI 問答次數限制
         image = request.FILES.get('image') if 'image' in request.FILES else None
         if content:
             exam_question = ExamQuestion.objects.create(
                 title=title,
                 content=content,
                 max_attempts=max_attempts,
+                ai_limit=ai_limit,  # 新增：儲存 ai_limit
                 created_by=request.user,
                 image=image
             )
             InteractionLog.objects.create(
                 user=request.user,
-                question=f"題目: {content}, 最大次數: {max_attempts}",
+                question=f"題目: {content}, 最大次數: {max_attempts}, AI 次數限制: {ai_limit}",
                 response="題目已成功創建",
-                exam_question=exam_question
+                exam_question=exam_question,
+                exam_paper=None
             )
-            return HttpResponse(f"題目 '{title}' 已上傳，最大提問次數: {max_attempts}（臨時）")
+            return HttpResponse(f"題目 '{title}' 已上傳，最大提問次數: {max_attempts}，AI 問答次數限制: {ai_limit}")
     return HttpResponse("無權限或請使用 POST 方法提交題目。")
 
 def ask_exam_question(request):
@@ -611,7 +622,7 @@ def ask_exam_question(request):
                     question=f"題目: {exam_question.title}, 回答: {answer}",
                     response=f"回答 {'正確' if is_correct else '錯誤'}, 得分: {score}",
                     exam_question=exam_question,
-                    score=score
+                    exam_paper=None
                 )
                 messages.success(request, f"回答提交成功！得分: {score} / {exam_question.points} 分")
             except ExamQuestion.DoesNotExist:
