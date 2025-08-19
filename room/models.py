@@ -68,6 +68,7 @@ class InteractionLog(models.Model):
     question = models.TextField(verbose_name="問題")
     response = models.TextField(verbose_name="回覆")
     exam_question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關題目")
+    exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關考卷")  # 新增此字段
     score = models.IntegerField(default=0, verbose_name="得分")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="創建時間")
 

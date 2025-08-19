@@ -25,7 +25,7 @@
                     <div class="alert alert-{{ message.tags }}">{{ message }}</div>
                 {% endfor %}
             {% endif %}
-            <form method="post" action="{% url 'teacher_exam' %}" enctype="multipart/form-data" class="row g-3" onsubmit="console.log('Form submission triggered'); return validateForm();">
+            <form method="post" action="{% url 'room:teacher_exam' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 {% if question_to_edit %}
                     <input type="hidden" name="question_id" value="{{ question_to_edit.id }}" class="col-12">
@@ -63,7 +63,7 @@
                                     {% if question_to_edit and question_to_edit.correct_option_indices == forloop.counter0|stringformat:"s" %}checked{% endif %} 
                                     class="sc-answer">
                                 <input type="checkbox" name="correct_options" value="{{ forloop.counter0 }}" 
-                                    {% if question_to_edit and question_to_edit.correct_answer == forloop.counter0|stringformat:"s" %}checked{% endif %}  
+                                    {% if question_to_edit and question_to_edit.correct_answer_list and forloop.counter0|stringformat:"s" in question_to_edit.correct_answer_list %}checked{% endif %}  
                                     class="mcq-answer" style="display: none;">
                                 <label>正確答案</label>
                             </span>
@@ -111,6 +111,11 @@
                     <input type="number" name="points" value="{{ question_to_edit.points|default:10 }}" class="form-control" min="0" max="100" required>
                 </div>
                 
+                <div class="form-group col-md-6">
+                    <label for="ai_limit" class="form-label">AI 問答次數限制（0 表示無限制）：</label>
+                    <input type="number" name="ai_limit" value="{{ question_to_edit.ai_limit|default:0 }}" class="form-control" min="0" required>
+                </div>
+                
                 <div class="form-group col-12">
                     <label for="image" class="form-label">上傳圖片：</label>
                     <input type="file" name="image" accept="image/*" class="form-control">
@@ -144,7 +149,7 @@
                 </div>
 
                 <!-- 刪除題目表單 -->
-                <form method="post" action="{% url 'teacher_exam' %}" id="delete-form">
+                <form method="post" action="{% url 'room:teacher_exam' %}" id="delete-form">
                     {% csrf_token %}
                     <input type="hidden" name="delete_question" value="1">
                     
@@ -156,12 +161,17 @@
                         <h4>已選題目</h4>
                         <div id="selected-list"></div>
                         <div class="selected-count">
-                            總計：<span id="total-questions">0</span> 題，<span id="total-points">0</span> 分
+                            總計：<span id="total-questions">0</span> 題，<span id="total-points">0</span> 分，AI 問答次數限制：<span id="total-ai-limit">0</span> 次
                         </div>
                     </div>
 
                     {% for question in all_questions %}
-                        <div class="question-item" id="question-{{ question.id }}" data-id="{{ question.id }}" data-title="{{ question.title }}" data-type="{{ question.question_type }}" data-points="{{ question.points }}">
+                        <div class="question-item" id="question-{{ question.id }}" 
+                            data-id="{{ question.id }}" 
+                            data-title="{{ question.title }}" 
+                            data-type="{{ question.question_type }}" 
+                            data-points="{{ question.points }}"
+                            data-ai-limit="{{ question.ai_limit|default:0 }}">
                             <input type="checkbox" name="delete_questions" value="{{ question.id }}" class="form-check-input question-checkbox" onchange="updateSelection()">
                             
                             <div class="row">
@@ -175,6 +185,7 @@
                                             {% else %}{{ question.question_type }}{% endif %}
                                         </span>
                                         <span class="badge bg-secondary points-badge">{{ question.points }} 分</span>
+                                        <span class="badge bg-info ai-limit-badge">AI 限制: {{ question.ai_limit|default:'無' }} 次</span>
                                     </div>
                                     <p class="mt-2"><strong>{{ question.title }}</strong></p>
                                     
@@ -195,7 +206,6 @@
                                             {% if question.question_type == "sc" %}
                                                 選項 {{ question.correct_option_indices|add:1 }}
                                             {% elif question.question_type == "mcq" %}
-                                                <!-- 使用 view 中處理過的選項索引列表 -->
                                                 {% if question.correct_option_indices_list %}
                                                     {% for idx in question.correct_option_indices_list %}
                                                         選項 {{ idx|add:1 }}{% if not forloop.last %}, {% endif %}
@@ -234,7 +244,7 @@
         <!-- 創建考試標籤頁 -->
         <div id="create-exam" class="tab-content">
             <h3>創建考試</h3>
-            <form method="post" action="{% url 'teacher_exam' %}" id="exam-form" class="row g-3">
+            <form method="post" action="{% url 'room:teacher_exam' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create_exam">
                 
@@ -272,6 +282,7 @@
                     <label class="form-label">考試題目：</label>
                     <div id="exam-questions-summary" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: #f8f9fa; min-height: 100px;">
                         <p style="color: #666;">請先到「題目庫」標籤頁選擇要加入考試的題目</p>
+                        <p>總計：<span id="total-questions-exam">0</span> 題，<span id="total-points-exam">0</span> 分，AI 問答次數限制：<span id="total-ai-limit-exam">0</span> 次</p>
                     </div>
                 </div>
                 

@@ -18,15 +18,15 @@
     <div class="container">
         <div class="sidebar">
             <h2>計算機概論</h2>
-            <a href="{% url 'home' %}">🏠 首頁</a>
-            <a href="{% url 'exam' %}">📝 考試</a>
-            <a href="{% url 'history' %}">⏳ 歷史</a>
-            <a href="{% url 'readme' %}">📖 ReadMe</a>
-            <a href="{% url 'profile' %}">👤 個人資料</a>
+            <a href="{% url 'room:home' %}">🏠 首頁</a>
+            <a href="{% url 'room:exam' %}">📝 考試</a>
+            <a href="{% url 'room:history' %}">⏳ 歷史</a>
+            <a href="{% url 'room:readme' %}">📖 ReadMe</a>
+            <a href="{% url 'room:profile' %}">👤 個人資料</a>
             {% if not user.is_authenticated %}
-                <a href="{% url 'login' %}">🔑 登入</a>
+                <a href="{% url 'room:login' %}">🔑 登入</a>
             {% else %}
-                <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+                <form action="{% url 'room:logout' %}" method="post" style="margin: 0;">
                     {% csrf_token %}
                     <button type="submit" style="width: 100%; background: none; border: none; color: white; text-align: left; padding: 8px 0; cursor: pointer;">
                     🚪 登出
@@ -34,8 +34,8 @@
                 </form>
             {% endif %}
             {% if user.is_authenticated and user.is_staff %}
-                <a href="{% url 'teacher_exam' %}">📝 出題</a>
-                <a href="{% url 'student_exam_history' %}">📋 學生考試歷史</a>
+                <a href="{% url 'room:teacher_exam' %}">📝 出題</a>
+                <a href="{% url 'room:student_exam_history' %}">📋 學生考試歷史</a>
             {% endif %}
         </div>
 

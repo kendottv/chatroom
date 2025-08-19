@@ -11,8 +11,8 @@
     <!-- 簡單導航欄 -->
     <nav>
         <div>
-            <a href="/" style="margin-right: 20px;">首頁</a>
-            <a href="/exam/" style="margin-right: 20px;">考試</a>
+            <a href="{% url 'room:home' %}" style="margin-right: 20px;">首頁</a>
+            <a href="{% url 'room:exam' %}" style="margin-right: 20px;">考試</a>
         </div>
     </nav>
 
@@ -30,12 +30,20 @@
             <h3 class="ai-title">🤖 AI 問答助手</h3>
             <div class="ai-description">
                 如果您在考試過程中有疑問，可以向 AI 助手提問獲得幫助
+                {% if exam_papers %}
+                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">{{ exam_papers.0.ai_total_limit }} 次（0 表示無限制）</span></p>
+                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="{{ exam_papers.0.ai_total_limit }}">{{ exam_papers.0.ai_total_limit }}</span></p>
+                    <input type="hidden" id="current-paper-id" value="{{ exam_papers.0.id }}">
+                {% else %}
+                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">無可用考卷</span></p>
+                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display">無可用考卷</span></p>
+                {% endif %}
             </div>
             <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：
 • 這道題目的關鍵概念是什麼？
 • 我應該如何理解這個問題？
 • 能否解釋一下相關知識點？"></textarea>
-            <button onclick="askAI()" class="ai-btn">💬 向 AI 提問</button>
+            <button onclick="askAI()" class="ai-btn" {% if not exam_papers %}disabled{% endif %}>💬 向 AI 提問</button>
             <div id="ai-response" class="ai-response">
                 AI 回應將顯示在這裡...
                 <br><br>
@@ -66,17 +74,18 @@
             <p>Debug: exam_papers count = {{ exam_papers|length }}</p>
             {% if exam_papers %}
                 {% for paper in exam_papers %}
-                    <p>Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions</p>
+                    <p>Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions, AI Limit: {{ paper.ai_total_limit }}</p>
                     <div class="exam-paper" data-paper-id="{{ paper.id }}">
                         <div class="exam-header">
                             <h3 class="exam-title">📝 {{ paper.title }}</h3>
                             <div class="exam-info">
                                 <p><strong>總分：</strong>{{ paper.total_points }} 分</p>
                                 <p><strong>題目數量：</strong>{{ paper.questions.count }} 題</p>
+                                <p><strong>AI 問答次數限制：</strong>{{ paper.ai_total_limit }} 次（0 表示無限制）</p>
                             </div>
                         </div>
                         
-                        <form method="post" action="{% url 'exam' %}" onsubmit="return confirmAction(event, this)">
+                        <form method="post" action="{% url 'room:exam' %}" onsubmit="return confirmAction(event, this)">
                             {% csrf_token %}
                             <input type="hidden" name="paper_id" value="{{ paper.id }}">
                             
@@ -85,6 +94,7 @@
                                     <div class="question-header">
                                         <span class="question-number">📌 第 {{ forloop.counter }} 題</span>
                                         <span class="question-points">{{ question.points }} 分</span>
+                                        <span class="question-ai-limit">AI 限制: {{ question.ai_limit|default:'無' }} 次</span>
                                     </div>
                                     
                                     {% if question.title %}

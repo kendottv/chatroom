@@ -23,46 +23,31 @@ def exam(request):
     current_time = timezone.now()
     
     if request.method == 'POST':
-        # 處理結束考試（管理員功能）
         if 'end_exam' in request.POST and request.user.is_staff:
             paper_id = request.POST.get('paper_id')
-            print(f"Attempting to end exam with paper_id: {paper_id}")
             if paper_id:
                 try:
                     exam_paper = ExamPaper.objects.get(id=paper_id)
                     exam_paper.end_time = current_time
                     exam_paper.save()
                     messages.success(request, f"考卷 '{exam_paper.title}' 已結束！")
-                    return redirect('exam')
+                    return redirect('room:exam')
                 except ExamPaper.DoesNotExist:
                     messages.error(request, "考卷不存在。")
             else:
                 messages.error(request, "未提供考卷 ID。")
         
-        # 處理考試答案提交
         elif 'paper_id' in request.POST:
             paper_id = request.POST.get('paper_id')
             if paper_id:
                 try:
                     exam_paper = ExamPaper.objects.get(id=paper_id)
-                    # 檢查考試是否在時間範圍內
-                    if current_time < exam_paper.start_time or current_time > exam_paper.end_time:
+                    if current_time < exam_paper.start_time or current_time > exam_time.end_time:
                         messages.error(request, "考試時間已過或尚未開始。")
-                        return redirect('exam')
+                        return redirect('room:exam')
 
                     student = request.user
-                    answers = {}
-                    # 收集所有答案
-                    for key, value in request.POST.items():
-                        if key.startswith('answers_'):
-                            question_id = key.replace('answers_', '')
-                            if value:
-                                if request.POST.getlist(key):  # 處理多選題
-                                    answers[question_id] = request.POST.getlist(key)
-                                else:
-                                    answers[question_id] = value
-
-                    # 創建或更新 ExamRecord
+                    answers = json.loads(request.POST.get('answers', '{}')) if request.POST.get('answers') else {}
                     exam_record, created = ExamRecord.objects.update_or_create(
                         student=student,
                         exam_paper=exam_paper,
@@ -76,11 +61,9 @@ def exam(request):
                         student_answer = answers.get(question_id)
                         is_correct = False
 
-                        # 處理空白答案
                         if not student_answer or student_answer == ['']:
                             student_answer = None
 
-                        # 驗證答案
                         if student_answer is not None:
                             if question.question_type == 'sc':
                                 try:
@@ -91,7 +74,7 @@ def exam(request):
                                     is_correct = False
                             elif question.question_type == 'mcq':
                                 try:
-                                    user_options = sorted(student_answer) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
+                                    user_options = sorted(map(str, student_answer)) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
                                     correct_options = sorted(question.correct_option_indices.split(',')) if question.correct_option_indices else []
                                     is_correct = user_options == correct_options
                                 except:
@@ -107,7 +90,6 @@ def exam(request):
                         else:
                             score = 0
 
-                        # 儲存到 ExamAnswer
                         ExamAnswer.objects.update_or_create(
                             exam_record=exam_record,
                             exam_question=question,
@@ -118,17 +100,15 @@ def exam(request):
                             }
                         )
 
-                        # 記錄到 InteractionLog
                         InteractionLog.objects.create(
                             user=student,
                             question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer or '未作答'}",
                             response=f"回答 {'正確' if is_correct else '錯誤' if question.correct_option_indices or question.is_correct else '已記錄'}, 得分: {score}/{question.points}",
                             exam_question=question,
-                            exam_paper=exam_paper,  # 新增：記錄相關考卷
+                            exam_paper=exam_paper,
                             score=score
                         )
 
-                    # 更新考試歷史紀錄
                     StudentExamHistory.objects.update_or_create(
                         student=student,
                         exam_paper=exam_paper,
@@ -142,27 +122,31 @@ def exam(request):
                     exam_record.score = total_score
                     exam_record.save()
                     messages.success(request, f"考試 '{exam_paper.title}' 已提交，總分 {total_score} / {exam_paper.total_points} 分！")
-                    return redirect('exam')
+                    return redirect('room:exam')
 
                 except ExamPaper.DoesNotExist:
                     messages.error(request, "考卷不存在。")
                 except Exception as e:
                     messages.error(request, f"提交過程中發生錯誤：{str(e)}")
                     print(f"Exception in exam submission: {e}")
-        
-        # 處理 AI 問答（移到獨立視圖 ask_ai）
 
-    # 獲取所有考卷（包括已完成的），並檢查完成狀態
+    # 獲取所有考卷並檢查完成狀態
     all_papers = ExamPaper.objects.all().prefetch_related('questions')
     exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
     exam_records_dict = {record['exam_paper_id']: {'is_completed': record['is_completed']} for record in exam_records}
 
-    # 過濾只顯示未結束的考試作為「可用的考卷」
-    available_papers = [paper for paper in all_papers if paper.publish_time <= current_time and paper.end_time > current_time]
-    
+    # 過濾只顯示未結束且未完成的考試
+    available_papers = [
+        paper for paper in all_papers
+        if paper.publish_time <= current_time and paper.end_time > current_time and
+        not exam_records_dict.get(paper.id, {}).get('is_completed', False)
+    ]
+    for paper in available_papers:
+        paper.ai_total_limit = sum(q.ai_limit for q in paper.questions.all())
+
     if not available_papers:
         messages.info(request, "目前沒有進行中的考試。請聯繫管理員或檢查時間設置。")
-    
+
     return render(request, 'exam.html', {
         'exam_papers': available_papers,
         'exam_records': exam_records_dict,
@@ -337,7 +321,6 @@ def teacher_exam(request):
                         messages.error(request, f"所選題目無效或無權限。檢查 ID: {question_ids}")
                     else:
                         total_points = sum(q.points for q in valid_questions)
-                        ai_total_limit = sum(q.ai_limit for q in valid_questions)  # 新增：計算總 AI 次數
                         publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
                         end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
@@ -349,7 +332,6 @@ def teacher_exam(request):
                             exam_paper = ExamPaper.objects.create(
                                 title=exam_title,
                                 total_points=total_points,
-                                ai_total_limit=ai_total_limit,  # 新增：儲存總 AI 次數
                                 created_by=request.user,
                                 publish_time=publish_time,
                                 start_time=start_time,
@@ -361,6 +343,9 @@ def teacher_exam(request):
                             messages.success(request, f"考卷 '{exam_title}' 已成功創建！")
                 except ValueError as e:
                     messages.error(request, f"時間或題目 ID 格式錯誤：{str(e)}")
+                except Exception as e:
+                    messages.error(request, f"創建考試失敗：{str(e)}")
+                    print(f"Exception in exam creation: {e}")
 
         # 處理刪除題目
         elif 'delete_question' in request.POST:
@@ -393,11 +378,16 @@ def teacher_exam(request):
             question_to_edit.options.append('')
         if question_to_edit.content is None:
             question_to_edit.content = ''
+        # 為不同題型設置 correct_answer_list 或相關數據
         if question_to_edit.question_type == 'mcq' and question_to_edit.correct_option_indices:
             try:
                 question_to_edit.correct_answer_list = question_to_edit.correct_option_indices.split(',')
             except:
                 question_to_edit.correct_answer_list = []
+        elif question_to_edit.question_type == 'sc' and question_to_edit.correct_option_indices:
+            question_to_edit.correct_answer_list = [question_to_edit.correct_option_indices]
+        else:
+            question_to_edit.correct_answer_list = []  # 默認空列表
 
     return render(request, 'teacher_exam.html', {
         'all_questions': all_questions,
@@ -413,7 +403,7 @@ def student_exam_history(request):
     """
     if not request.user.is_authenticated or not request.user.is_staff:
         messages.error(request, "您無權限訪問此頁面。")
-        return redirect('teacher_exam')
+        return redirect('room:teacher_exam')
 
     # 獲取所有學生的考試歷史
     histories = StudentExamHistory.objects.all().order_by('-completed_at')
@@ -493,7 +483,7 @@ def student_exam_history(request):
         exam_record.score = total_score
         exam_record.save()
         messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
-        return redirect('student_exam_history')
+        return redirect('room:student_exam_history')
 
     return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
