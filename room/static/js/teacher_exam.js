@@ -11,15 +11,12 @@ let selectedQuestions = [];
  * 若切換到題目庫標籤，更新選中題目資訊。
  */
 function switchTab(tabId) {
-    // 移除所有標籤頁和按鈕的 active 類
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     
-    // 啟用指定的標籤頁和對應按鈕
     document.getElementById(tabId).classList.add('active');
     document.querySelector(`button[onclick="switchTab('${tabId}')"]`).classList.add('active');
     
-    // 如果切換到題目庫標籤，更新選中題目顯示
     if (tabId === 'question-bank') {
         updateSelection();
     }
@@ -30,9 +27,7 @@ function switchTab(tabId) {
  * 功能：將所有題目checkbox設為選中，並更新選中題目資訊。
  */
 function selectAll() {
-    // 遍歷所有題目checkbox並設為選中
     document.querySelectorAll('.question-checkbox').forEach(cb => cb.checked = true);
-    // 更新選中題目顯示
     updateSelection();
 }
 
@@ -41,9 +36,7 @@ function selectAll() {
  * 功能：將所有題目checkbox設為未選中，並更新選中題目資訊。
  */
 function clearSelection() {
-    // 遍歷所有題目checkbox並設為未選中
     document.querySelectorAll('.question-checkbox').forEach(cb => cb.checked = false);
-    // 更新選中題目顯示
     updateSelection();
 }
 
@@ -53,48 +46,40 @@ function clearSelection() {
  * 更新題目庫和創建考試頁面的顯示，並同步隱藏輸入欄位。
  */
 function updateSelection() {
-    // 獲取所有選中的題目checkbox
     const checkboxes = document.querySelectorAll('.question-checkbox:checked');
-    // 初始化選中題目陣列和統計數據
     selectedQuestions = [];
     let totalPoints = 0;
     let totalAiLimit = 0;
 
-    // 遍歷選中題目，收集資料並累計總分和 AI 次數
     checkboxes.forEach(cb => {
         const questionItem = cb.closest('.question-item');
         selectedQuestions.push({
             id: cb.value,
             title: questionItem.dataset.title,
             type: questionItem.dataset.type,
-            points: parseInt(questionItem.dataset.points),
-            ai_limit: parseInt(questionItem.dataset.aiLimit || 0) // 確保 ai_limit 為數字，預設 0
+            points: parseInt(questionItem.dataset.points) || 0,
+            ai_limit: parseInt(questionItem.dataset.aiLimit) || 1 // 預設至少 1
         });
-        totalPoints += parseInt(questionItem.dataset.points);
-        totalAiLimit += parseInt(questionItem.dataset.aiLimit || 0);
+        totalPoints += parseInt(questionItem.dataset.points) || 0;
+        totalAiLimit += parseInt(questionItem.dataset.aiLimit) || 1;
     });
 
-    // 更新題目庫的統計顯示
     document.getElementById('selected-count').textContent = selectedQuestions.length;
     document.getElementById('total-questions').textContent = selectedQuestions.length;
     document.getElementById('total-points').textContent = totalPoints;
     document.getElementById('total-ai-limit').textContent = totalAiLimit;
 
-    // 更新創建考試頁面的統計顯示
     document.getElementById('total-questions-exam').textContent = selectedQuestions.length;
     document.getElementById('total-points-exam').textContent = totalPoints;
     document.getElementById('total-ai-limit-exam').textContent = totalAiLimit;
 
-    // 更新選中題目清單顯示
     const selectedList = document.getElementById('selected-list');
     selectedList.innerHTML = selectedQuestions.map(q => 
         `<p>題目: ${q.title} (${q.type}, ${q.points} 分, AI 次數: ${q.ai_limit})</p>`
     ).join('');
 
-    // 將選中題目 ID 存入隱藏輸入欄位，供創建考試提交
     document.getElementById('selected_questions_input').value = selectedQuestions.map(q => q.id).join(',');
     
-    // 根據選中題目數量啟用或禁用創建考試按鈕
     document.getElementById('create-exam-btn').disabled = selectedQuestions.length === 0;
 }
 
@@ -121,9 +106,7 @@ function confirmDelete() {
  * 功能：根據選擇的題型（單選、多選、是非、簡答）顯示或隱藏選項、真假答案或簡答答案輸入區域。
  */
 function updateForm() {
-    // 獲取當前題型
     const questionType = document.getElementById('question_type').value;
-    // 獲取各區域元素
     const optionsContainer = document.getElementById('options_container');
     const trueFalseContainer = document.getElementById('true_false_container');
     const shortAnswerContainer = document.getElementById('short_answer_container');
@@ -131,12 +114,10 @@ function updateForm() {
     const mcqAnswers = document.querySelectorAll('.mcq-answer');
     const optionInputs = document.querySelectorAll('.option-input');
 
-    // 根據題型顯示或隱藏選項區域
     optionsContainer.style.display = (questionType === 'sc' || questionType === 'mcq') ? 'block' : 'none';
     trueFalseContainer.style.display = questionType === 'tf' ? 'block' : 'none';
     shortAnswerContainer.style.display = questionType === 'sa' ? 'block' : 'none';
 
-    // 根據題型顯示單選或多選答案選項
     scAnswers.forEach(answer => {
         answer.style.display = questionType === 'sc' ? 'inline' : 'none';
     });
@@ -144,7 +125,6 @@ function updateForm() {
         answer.style.display = questionType === 'mcq' ? 'inline' : 'none';
     });
 
-    // 啟用或禁用選項輸入框
     optionInputs.forEach(input => {
         input.disabled = !(questionType === 'sc' || questionType === 'mcq');
     });
@@ -157,13 +137,12 @@ function updateForm() {
  * 若有效則將編輯器內容存入隱藏輸入欄位。
  */
 function validateForm() {
-    // 獲取表單輸入值
     const questionType = document.getElementById('question_type').value;
     const editorContent = quill.root.innerHTML.trim();
     const optionInputs = document.querySelectorAll('.option-input');
     const scAnswers = document.querySelectorAll('.sc-answer:checked');
     const mcqAnswers = document.querySelectorAll('.mcq-answer:checked');
-    const tfAnswers = document.querySelectorAll('input[name="correct_answer"]:checked');
+    const tfAnswers = document.querySelectorAll('input[name="is_correct"]:checked'); // 修正為 is_correct
     const maxAttempts = document.querySelector('input[name="max_attempts"]').value;
     const points = document.querySelector('input[name="points"]').value;
     const aiLimit = document.querySelector('input[name="ai_limit"]').value;
@@ -195,7 +174,6 @@ function validateForm() {
             return false;
         }
     } else if (questionType === 'tf' && tfAnswers.length === 0) {
-        // 驗證是非題
         alert('請選擇真或假作為正確答案！');
         return false;
     }
@@ -213,8 +191,8 @@ function validateForm() {
     }
     
     // 驗證 AI 問答次數限制
-    if (parseInt(aiLimit) < 0) {
-        alert('AI 問答次數限制不能為負數！');
+    if (parseInt(aiLimit) < 1) {
+        alert('AI 問答次數限制必須至少為 1！');
         return false;
     }
 
@@ -239,11 +217,26 @@ const quill = new Quill('#editor-container', {
     }
 });
 
+// 監聽內容變化，實時同步到隱藏輸入
+quill.on('text-change', function() {
+    const content = quill.root.innerHTML;
+    document.getElementById('hidden_question').value = content;
+});
+
 /**
  * 頁面載入時初始化表單和選中題目。
  * 功能：確保題型表單和選中題目顯示正確。
  */
 document.addEventListener('DOMContentLoaded', () => {
-    updateForm(); // 初始化題型表單
-    updateSelection(); // 初始化選中題目顯示
+    updateForm();
+    updateSelection();
+    // 添加表單提交驗證
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!validateForm()) {
+                event.preventDefault();
+            }
+        });
+    }
 });
