@@ -112,8 +112,8 @@
                 </div>
                 
                 <div class="form-group col-md-6">
-                    <label for="ai_limit" class="form-label">AI 問答次數限制（0 表示無限制）：</label>
-                    <input type="number" name="ai_limit" value="{{ question_to_edit.ai_limit|default:0 }}" class="form-control" min="0" required>
+                    <label for="ai_limit" class="form-label">AI 問答次數限制：</label>
+                    <input type="number" name="ai_limit" value="{{ question_to_edit.ai_limit|default:1 }}" class="form-control" min="1" required>
                 </div>
                 
                 <div class="form-group col-12">
@@ -171,7 +171,7 @@
                             data-title="{{ question.title }}" 
                             data-type="{{ question.question_type }}" 
                             data-points="{{ question.points }}"
-                            data-ai-limit="{{ question.ai_limit|default:0 }}">
+                            data-ai-limit="{{ question.ai_limit|default:1 }}">
                             <input type="checkbox" name="delete_questions" value="{{ question.id }}" class="form-check-input question-checkbox" onchange="updateSelection()">
                             
                             <div class="row">
@@ -185,7 +185,7 @@
                                             {% else %}{{ question.question_type }}{% endif %}
                                         </span>
                                         <span class="badge bg-secondary points-badge">{{ question.points }} 分</span>
-                                        <span class="badge bg-info ai-limit-badge">AI 限制: {{ question.ai_limit|default:'無' }} 次</span>
+                                        <span class="badge bg-info ai-limit-badge">AI 限制: {{ question.ai_limit|default:'1' }} 次</span>
                                     </div>
                                     <p class="mt-2"><strong>{{ question.title }}</strong></p>
                                     

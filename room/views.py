@@ -176,12 +176,13 @@ def teacher_exam(request):
         if 'question_text' in request.POST:
             question_id = request.POST.get('question_id')
             title = request.POST.get('title', '無題目標題').strip()
-            ai_limit = request.POST.get('ai_limit', '0').strip()
+            ai_limit = request.POST.get('ai_limit', '1').strip()  # 預設為 1
             
             raw_content = request.POST.get('question_text', '').strip()
             print(f"Raw content: '{raw_content}'")
             
-            if not raw_content:
+            # 檢查是否為 Quill 的空值
+            if not raw_content or raw_content == '<p><br></p>' or raw_content == '':
                 messages.error(request, "題目內容不能為空。")
                 return render(request, 'teacher_exam.html', {
                     'all_questions': all_questions,
@@ -202,7 +203,7 @@ def teacher_exam(request):
                     option_value = request.POST.get(f'option_{i}', '').strip()
                     if option_value:
                         options.append(option_value)
-                if not options and question_type in ['sc', 'mcq']:
+                if not options:
                     messages.error(request, "請至少填寫一個選項。")
                     return render(request, 'teacher_exam.html', {
                         'all_questions': all_questions,
@@ -219,7 +220,7 @@ def teacher_exam(request):
                     try:
                         idx = int(correct_option)
                         if 0 <= idx < len(options):
-                            correct_option_indices = str(idx)  # 保持為字符串以匹配模型字段
+                            correct_option_indices = str(idx)
                     except (ValueError, TypeError):
                         messages.error(request, "無效的正確選項索引。")
                         return render(request, 'teacher_exam.html', {
@@ -244,7 +245,12 @@ def teacher_exam(request):
                 elif tf_answer in ['false', '0', 'f', 'no', 'n', '否', '錯', '錯誤']:
                     is_correct = False
                 else:
-                    is_correct = False
+                    messages.error(request, "請選擇真或假作為正確答案。")
+                    return render(request, 'teacher_exam.html', {
+                        'all_questions': all_questions,
+                        'question_to_edit': question_to_edit,
+                        'question_types': question_types
+                    })
             
             else:  # sa
                 sa_answer = request.POST.get('correct_answer', '').strip()
@@ -255,7 +261,7 @@ def teacher_exam(request):
                 max_attempts = int(request.POST.get('max_attempts', 1))
                 points = int(request.POST.get('points', 10))
                 ai_limit = int(ai_limit)
-                if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 0:
+                if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 1:  # 修正 ai_limit 最小值為 1
                     raise ValueError("無效的嘗試次數、配分或 AI 問答次數限制")
             except (ValueError, TypeError) as e:
                 messages.error(request, f"無效的嘗試次數、配分或 AI 問答次數限制：{str(e)}")
@@ -378,7 +384,7 @@ def teacher_exam(request):
             print("No matching POST condition found")
             print("Available POST keys:", list(request.POST.keys()))
 
-    # 處理編輯題目（保持不變）
+    # 處理編輯題目
     edit_id = request.GET.get('edit')
     if edit_id:
         question_to_edit = get_object_or_404(ExamQuestion, id=edit_id, created_by=request.user)
