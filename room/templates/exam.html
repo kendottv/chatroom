@@ -39,10 +39,7 @@
                     <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display">無可用考卷</span></p>
                 {% endif %}
             </div>
-            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：
-• 這道題目的關鍵概念是什麼？
-• 我應該如何理解這個問題？
-• 能否解釋一下相關知識點？"></textarea>
+            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：&#10;• 這道題目的關鍵概念是什麼？&#10;• 我應該如何理解這個問題？&#10;• 能否解釋一下相關知識點？"></textarea>
             <button onclick="askAI()" class="ai-btn" {% if not exam_papers %}disabled{% endif %}>💬 向 AI 提問</button>
             <div id="ai-response" class="ai-response">
                 AI 回應將顯示在這裡...
@@ -85,16 +82,25 @@
                             </div>
                         </div>
                         
-                        <form method="post" action="{% url 'room:exam' %}" onsubmit="return confirmAction(event, this)">
+                        <form method="post" action="{% url 'room:exam' %}" id="exam-form-{{ paper.id }}" onsubmit="return confirmAction(event, this)">
                             {% csrf_token %}
                             <input type="hidden" name="paper_id" value="{{ paper.id }}">
-                            
+                            <input type="hidden" name="answers" id="answers-{{ paper.id }}">
+
+                            <!-- 題目切換區域 -->
+                            <div class="question-nav">
+                                <span id="current-question-{{ paper.id }}">第 1 題 / {{ paper.questions.count }} 題</span>
+                                <button type="button" id="prev-question-{{ paper.id }}" class="nav-btn" disabled>上一題</button>
+                                <button type="button" id="next-question-{{ paper.id }}" class="nav-btn">下一題</button>
+                                <button type="button" id="submit-answer-{{ paper.id }}" class="submit-btn" onclick="submitSingleAnswer('{{ paper.id }}')">提交此題</button>
+                            </div>
+
                             {% for question in paper.questions.all %}
-                                <div class="question-container">
+                                <div class="question-container" data-question-id="{{ question.id }}" {% if forloop.first %}data-active="true"{% endif %}>
                                     <div class="question-header">
                                         <span class="question-number">📌 第 {{ forloop.counter }} 題</span>
                                         <span class="question-points">{{ question.points }} 分</span>
-                                        <span class="question-ai-limit">AI 限制: {{ question.ai_limit|default:'無' }} 次</span>
+                                        <span class="question-ai-limit">AI 限制: {% if question.ai_limit %}{{ question.ai_limit }}{% else %}無{% endif %} 次</span>
                                     </div>
                                     
                                     {% if question.title %}
@@ -114,8 +120,8 @@
                                             <div class="options-container">
                                                 {% for option in question.options %}
                                                     <div class="option-item">
-                                                        <input type="radio" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" required>
-                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{{ option|default:'無選項' }}</label>
+                                                        <input type="radio" name="answer-{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" required>
+                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
                                                     </div>
                                                 {% endfor %}
                                             </div>
@@ -125,8 +131,8 @@
                                             <div class="options-container">
                                                 {% for option in question.options %}
                                                     <div class="option-item">
-                                                        <input type="checkbox" name="answers_{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}">
-                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{{ option|default:'無選項' }}</label>
+                                                        <input type="checkbox" name="answer-{{ question.id }}[]" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}">
+                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
                                                     </div>
                                                 {% endfor %}
                                             </div>
@@ -134,23 +140,23 @@
                                     {% elif question.question_type == 'tf' %}
                                         <div class="options-container">
                                             <div class="option-item">
-                                                <input type="radio" name="answers_{{ question.id }}" value="true" id="q{{ question.id }}_true" required>
+                                                <input type="radio" name="answer-{{ question.id }}" value="true" id="q{{ question.id }}_true" required>
                                                 <label for="q{{ question.id }}_true">✅ 正確 (True)</label>
                                             </div>
                                             <div class="option-item">
-                                                <input type="radio" name="answers_{{ question.id }}" value="false" id="q{{ question.id }}_false" required>
+                                                <input type="radio" name="answer-{{ question.id }}" value="false" id="q{{ question.id }}_false" required>
                                                 <label for="q{{ question.id }}_false">❌ 錯誤 (False)</label>
                                             </div>
                                         </div>
                                     {% elif question.question_type == 'sa' %}
                                         <div class="text-answer">
-                                            <label for="answer_{{ question.id }}"><strong>請輸入您的答案：</strong></label>
-                                            <textarea name="answers_{{ question.id }}" id="answer_{{ question.id }}" rows="6" placeholder="請在此輸入您的詳細答案..."></textarea>
+                                            <label for="answer-{{ question.id }}"><strong>請輸入您的答案：</strong></label>
+                                            <textarea name="answer-{{ question.id }}" id="answer-{{ question.id }}" rows="6" placeholder="請在此輸入您的詳細答案..."></textarea>
                                         </div>
                                     {% else %}
                                         <div class="text-answer">
-                                            <label for="answer_{{ question.id }}"><strong>請輸入您的答案：</strong></label>
-                                            <input type="text" name="answers_{{ question.id }}" id="answer_{{ question.id }}" placeholder="請輸入答案...">
+                                            <label for="answer-{{ question.id }}"><strong>請輸入您的答案：</strong></label>
+                                            <input type="text" name="answer-{{ question.id }}" id="answer-{{ question.id }}" placeholder="請輸入答案...">
                                         </div>
                                     {% endif %}
                                 </div>

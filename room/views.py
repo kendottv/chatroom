@@ -7,12 +7,13 @@ from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.utils import timezone
 from django.db import IntegrityError
+from django.db.models import Sum  # 新增導入
 from .models import CustomUser, ExamQuestion, ExamPaper, InteractionLog, StudentExamHistory, ExamAnswer, ExamRecord
 from .forms import CustomLoginForm, CustomUserCreationForm, AvatarUpdateForm
 import bleach
 from django.utils.html import strip_tags
 import re
-import json  # 新增：導入 json 模組
+import json
 
 def home(request):
     return render(request, 'home.html')  # 首頁
@@ -43,13 +44,21 @@ def exam(request):
             if paper_id:
                 try:
                     exam_paper = ExamPaper.objects.get(id=paper_id)
-                    # 修復：將 exam_time 改為 exam_paper
                     if current_time < exam_paper.start_time or current_time > exam_paper.end_time:
                         messages.error(request, "考試時間已過或尚未開始。")
                         return redirect('room:exam')
 
                     student = request.user
-                    answers = json.loads(request.POST.get('answers', '{}')) if request.POST.get('answers') else {}
+                    # 從 request.POST 獲取 answers 字段，假設前端傳送 JSON 字符串
+                    answers_str = request.POST.get('answers', '{}')
+                    print(f"Received answers string: {answers_str}")  # 調試：檢查傳入的 answers
+                    try:
+                        answers = json.loads(answers_str) if answers_str else {}
+                        print(f"Parsed answers: {answers}")  # 調試：檢查解析後的 answers
+                    except json.JSONDecodeError as e:
+                        answers = {}
+                        print(f"JSON decode error: {e}")
+
                     exam_record, created = ExamRecord.objects.update_or_create(
                         student=student,
                         exam_paper=exam_paper,
@@ -63,13 +72,18 @@ def exam(request):
                         student_answer = answers.get(question_id)
                         is_correct = False
 
-                        if not student_answer or student_answer == ['']:
+                        # 處理 student_answer，允許空字符串但記錄
+                        if student_answer is None or (isinstance(student_answer, list) and not any(student_answer)):
                             student_answer = None
+                        elif isinstance(student_answer, str) and not student_answer.strip():
+                            student_answer = ''  # 保留空字符串以區分未作答
+
+                        print(f"Processing question {question_id}: student_answer = {student_answer}")  # 調試
 
                         if student_answer is not None:
                             if question.question_type == 'sc':
                                 try:
-                                    user_option_index = int(student_answer[0]) if isinstance(student_answer, list) else int(student_answer)
+                                    user_option_index = int(student_answer) if isinstance(student_answer, (str, int)) else None
                                     correct_option_index = int(question.correct_option_indices) if question.correct_option_indices else None
                                     is_correct = user_option_index == correct_option_index
                                 except (ValueError, TypeError):
@@ -79,7 +93,8 @@ def exam(request):
                                     user_options = sorted(map(str, student_answer)) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
                                     correct_options = sorted(question.correct_option_indices.split(',')) if question.correct_option_indices else []
                                     is_correct = user_options == correct_options
-                                except:
+                                except Exception as e:
+                                    print(f"MCQ error: {e}")
                                     is_correct = False
                             elif question.question_type == 'tf':
                                 student_bool = str(student_answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']
@@ -92,11 +107,12 @@ def exam(request):
                         else:
                             score = 0
 
+                        # 確保保存 student_answer，即使為空
                         ExamAnswer.objects.update_or_create(
                             exam_record=exam_record,
                             exam_question=question,
                             defaults={
-                                'student_answer': str(student_answer) if student_answer else None,
+                                'student_answer': student_answer,
                                 'score': score,
                                 'is_correct': is_correct
                             }
@@ -104,7 +120,7 @@ def exam(request):
 
                         InteractionLog.objects.create(
                             user=student,
-                            question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer or '未作答'}",
+                            question=f"題目: {question.title or question.content[:50]}..., 回答: {student_answer if student_answer is not None else '未作答'}",
                             response=f"回答 {'正確' if is_correct else '錯誤' if question.correct_option_indices or question.is_correct else '已記錄'}, 得分: {score}/{question.points}",
                             exam_question=question,
                             exam_paper=exam_paper,
@@ -261,7 +277,7 @@ def teacher_exam(request):
                 max_attempts = int(request.POST.get('max_attempts', 1))
                 points = int(request.POST.get('points', 10))
                 ai_limit = int(ai_limit)
-                if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 1:  # 修正 ai_limit 最小值為 1
+                if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 1:
                     raise ValueError("無效的嘗試次數、配分或 AI 問答次數限制")
             except (ValueError, TypeError) as e:
                 messages.error(request, f"無效的嘗試次數、配分或 AI 問答次數限制：{str(e)}")
@@ -323,8 +339,8 @@ def teacher_exam(request):
                 messages.error(request, f"創建/更新失敗：{str(e)}")
                 print(f"Error creating/updating question: {str(e)}")
 
-        # 處理創建考試（保持不變）
-        elif 'exam_title' in request.POST:
+        # 處理創建考試
+        elif 'action' in request.POST and request.POST['action'] == 'create_exam':
             exam_title = request.POST.get('exam_title').strip()
             selected_questions_str = request.POST.get('selected_questions', '').strip()
 
@@ -338,10 +354,13 @@ def teacher_exam(request):
                         messages.error(request, f"所選題目無效或無權限。檢查 ID: {question_ids}")
                     else:
                         total_points = sum(q.points for q in valid_questions)
-                        publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
-                        start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
-                        end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M')
+                        # 轉換為帶時區的 datetime
+                        publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
+                        start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
+                        end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
                         duration_minutes = int(request.POST.get('duration_minutes', 60))
+
+                        print(f"Processed times - publish: {publish_time}, start: {start_time}, end: {end_time}")
 
                         if start_time > end_time:
                             messages.error(request, "開始時間不能晚於截止時間。")
@@ -358,13 +377,14 @@ def teacher_exam(request):
                             )
                             exam_paper.questions.set(valid_questions)
                             messages.success(request, f"考卷 '{exam_title}' 已成功創建！")
+                            print(f"Exam paper created: {exam_paper.id}")
                 except ValueError as e:
                     messages.error(request, f"時間或題目 ID 格式錯誤：{str(e)}")
                 except Exception as e:
                     messages.error(request, f"創建考試失敗：{str(e)}")
                     print(f"Exception in exam creation: {e}")
 
-        # 處理刪除題目（保持不變）
+        # 處理刪除題目
         elif 'delete_question' in request.POST:
             question_ids = request.POST.getlist('delete_questions')
             if question_ids:
@@ -619,9 +639,18 @@ def ask_exam_question(request):
                 exam_question = ExamQuestion.objects.get(id=question_id)
                 is_correct = False
                 if exam_question.question_type == 'mcq':
-                    is_correct = str(answer) in exam_question.correct_answer
-                elif exam_question.question_type in ['sa', 'tf']:
-                    is_correct = answer.lower() == exam_question.correct_answer.lower() if exam_question.correct_answer else False
+                    try:
+                        user_options = sorted(map(str, answer)) if isinstance(answer, (list, tuple)) else sorted(answer.split(',')) if answer else []
+                        correct_options = sorted(exam_question.correct_option_indices.split(',')) if exam_question.correct_option_indices else []
+                        is_correct = user_options == correct_options
+                    except:
+                        is_correct = False
+                elif exam_question.question_type == 'tf':
+                    user_bool = str(answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']
+                    is_correct = user_bool == exam_question.is_correct
+                elif exam_question.question_type in ['sa', 'essay']:
+                    is_correct = str(answer).strip().lower() == str(exam_question.correct_option_indices).strip().lower() if exam_question.correct_option_indices else False
+
                 score = exam_question.points if is_correct else 0
                 InteractionLog.objects.create(
                     user=request.user,
@@ -633,7 +662,100 @@ def ask_exam_question(request):
                 messages.success(request, f"回答提交成功！得分: {score} / {exam_question.points} 分")
             except ExamQuestion.DoesNotExist:
                 messages.error(request, "題目不存在。")
-        return redirect('exam')
+        return redirect('room:exam')
     return HttpResponse("請使用 POST 方法提交回答。")
+
+@login_required
+def submit_single_answer(request):
+    if request.method == 'POST':
+        try:
+            # 解析 JSON 數據
+            data = json.loads(request.body.decode('utf-8'))
+            paper_id = data.get('paper_id')
+            question_id = data.get('question_id')
+            answer = data.get('answer')
+
+            if not all([paper_id, question_id, answer is not None]):
+                return JsonResponse({'status': 'error', 'message': '缺少必要參數'}, status=400)
+
+            # 獲取相關物件
+            exam_paper = get_object_or_404(ExamPaper, id=paper_id)
+            exam_question = get_object_or_404(ExamQuestion, id=question_id)
+            exam_record, created = ExamRecord.objects.get_or_create(
+                student=request.user,
+                exam_paper=exam_paper,
+                defaults={'score': 0, 'is_completed': False}
+            )
+
+            # 檢查答題次數限制
+            if exam_question.max_attempts > 0:
+                answer_count = ExamAnswer.objects.filter(exam_record=exam_record, exam_question=exam_question).count()
+                if answer_count >= exam_question.max_attempts:
+                    return JsonResponse({'status': 'error', 'message': '已超過最大答題次數'}, status=403)
+
+            # 判斷答案是否正確
+            is_correct = False
+            if exam_question.question_type == 'sc':
+                try:
+                    user_option = int(answer) if isinstance(answer, (int, str)) else None
+                    correct_option = int(exam_question.correct_option_indices) if exam_question.correct_option_indices else None
+                    is_correct = user_option == correct_option
+                except (ValueError, TypeError):
+                    is_correct = False
+            elif exam_question.question_type == 'mcq':
+                try:
+                    user_options = sorted(map(str, answer)) if isinstance(answer, (list, tuple)) else sorted(answer.split(',')) if answer else []
+                    correct_options = sorted(exam_question.correct_option_indices.split(',')) if exam_question.correct_option_indices else []
+                    is_correct = user_options == correct_options
+                except:
+                    is_correct = False
+            elif exam_question.question_type == 'tf':
+                user_bool = str(answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']
+                is_correct = user_bool == exam_question.is_correct
+            elif exam_question.question_type in ['sa', 'essay']:
+                is_correct = str(answer).strip().lower() == str(exam_question.correct_option_indices).strip().lower() if exam_question.correct_option_indices else False
+
+            # 儲存答題紀錄
+            exam_answer = ExamAnswer.objects.create(
+                exam_record=exam_record,
+                exam_question=exam_question,
+                student_answer=str(answer) if answer else None,
+                score=exam_question.points if is_correct else 0,
+                is_correct=is_correct,
+                answered_at=timezone.now()
+            )
+
+            # 更新總分
+            total_score = ExamAnswer.objects.filter(exam_record=exam_record).aggregate(total=Sum('score'))['total'] or 0
+            exam_record.score = total_score
+            exam_record.save()
+
+            # 記錄互動
+            InteractionLog.objects.create(
+                user=request.user,
+                question=f"題目: {exam_question.title or exam_question.content[:50]}..., 回答: {answer or '未作答'}",
+                response=f"回答 {'正確' if is_correct else '錯誤'}, 得分: {exam_answer.score}/{exam_question.points}",
+                exam_question=exam_question,
+                exam_paper=exam_paper,
+                score=exam_answer.score
+            )
+
+            # 更新 StudentExamHistory
+            StudentExamHistory.objects.update_or_create(
+                student=request.user,
+                exam_paper=exam_paper,
+                defaults={'total_score': total_score, 'completed_at': timezone.now()}
+            )
+
+            return JsonResponse({'status': 'success', 'message': '答案提交成功', 'score': exam_answer.score})
+        except ExamPaper.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '考卷不存在'}, status=404)
+        except ExamQuestion.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '題目不存在'}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': '無效的 JSON 數據'}, status=400)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': '僅接受 POST 請求'}, status=405)
 
 logout = LogoutView.as_view(next_page='home')

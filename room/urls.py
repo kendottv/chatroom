@@ -17,4 +17,5 @@ urlpatterns = [
     path('upload_question/', views.upload_question, name='upload_question'),  # 出題提交
     path('ask_exam_question/', views.ask_exam_question, name='ask_exam_question'),  # 回答問題
     path('student_exam_history/', views.student_exam_history, name='student_exam_history'),
+    path('submit_single_answer/', views.submit_single_answer, name='submit_single_answer'),  # 新增路由
 ]

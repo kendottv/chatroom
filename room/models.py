@@ -34,7 +34,7 @@ class ExamQuestion(models.Model):
     points = models.IntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="配分")
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
     image = models.ImageField(upload_to='questions/', null=True, blank=True, verbose_name="題目圖片")
-    ai_limit = models.PositiveIntegerField(default=0, verbose_name="AI 問答次數限制", help_text="0 表示無限制")  # 新增欄位
+    ai_limit = models.PositiveIntegerField(default=0, verbose_name="AI 問答次數限制", help_text="0 表示無限制")
 
     def __str__(self):
         return self.title
@@ -68,7 +68,7 @@ class InteractionLog(models.Model):
     question = models.TextField(verbose_name="問題")
     response = models.TextField(verbose_name="回覆")
     exam_question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關題目")
-    exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關考卷")  # 新增此字段
+    exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, null=True, blank=True, verbose_name="相關考卷")
     score = models.IntegerField(default=0, verbose_name="得分")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="創建時間")
 
@@ -93,13 +93,13 @@ class ExamRecord(models.Model):
     class Meta:
         verbose_name = "考試紀錄"
         verbose_name_plural = "考試紀錄"
-        unique_together = ('student', 'exam_paper')  # 確保一個學生對同一考卷只有一筆紀錄
+        unique_together = ('student', 'exam_paper')
 
 # 學生對每個題目的答題紀錄
 class ExamAnswer(models.Model):
     exam_record = models.ForeignKey(ExamRecord, on_delete=models.CASCADE, related_name='answer_details', verbose_name="考試紀錄")
     exam_question = models.ForeignKey(ExamQuestion, on_delete=models.CASCADE, verbose_name="題目")
-    student_answer = models.TextField(null=True, blank=True, verbose_name="學生答案")  # 儲存單一題的答案
+    student_answer = models.TextField(null=True, blank=True, verbose_name="學生答案")
     score = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="得分")
     is_correct = models.BooleanField(default=False, verbose_name="是否正確")
     answered_at = models.DateTimeField(auto_now_add=True, verbose_name="回答時間")
@@ -110,20 +110,34 @@ class ExamAnswer(models.Model):
     class Meta:
         verbose_name = "答題紀錄"
         verbose_name_plural = "答題紀錄"
-        unique_together = ('exam_record', 'exam_question')  # 確保一個紀錄中不重複記錄同一題
+        unique_together = ('exam_record', 'exam_question')
 
-# 學生考試歷史紀錄（分開用於查看）
+# 學生考試歷史紀錄模型
 class StudentExamHistory(models.Model):
     student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, to_field='student_id', related_name='exam_history', verbose_name="學生")
     exam_paper = models.ForeignKey(ExamPaper, on_delete=models.CASCADE, verbose_name="考卷")
+    # 移除 question 外鍵，改用 question_content
+    question_content = models.TextField(verbose_name="題目內容", default="")
+    student_name = models.CharField(max_length=150, verbose_name="學生名稱", default="")
+    exam_paper_name = models.CharField(max_length=200, verbose_name="考卷名稱", default="")
+    student_answer = models.TextField(null=True, blank=True, verbose_name="學生答案")
     total_score = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="總分")
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="完成時間")
-    grade = models.CharField(max_length=10, blank=True, null=True, verbose_name="等級")  # 例如 A, B, C
+    grade = models.CharField(max_length=10, blank=True, null=True, verbose_name="等級")
 
     def __str__(self):
-        return f"{self.student.student_id} - {self.exam_paper.title} (得分: {self.total_score})"
+        return f"{self.student.student_id} - {self.exam_paper_name} - (內容: {self.question_content[:20]}) (得分: {self.total_score})"
+
+    def save(self, *args, **kwargs):
+        if not self.student_name:
+            self.student_name = self.student.username
+        if not self.exam_paper_name:
+            self.exam_paper_name = self.exam_paper.title
+        if not self.question_content:
+            self.question_content = self.exam_paper.questions.first().content if self.exam_paper.questions.exists() else ""
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "考試歷史紀錄"
         verbose_name_plural = "考試歷史紀錄"
-        unique_together = ('student', 'exam_paper')  # 確保一個學生對同一考卷只有一筆歷史紀錄
+        unique_together = ('student', 'exam_paper', 'question_content')
