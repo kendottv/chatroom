@@ -62,7 +62,7 @@ function switchQuestion(paperId, index) {
         console.error(`No questions found for paper ${paperId}`);
         return false;
     }
-
+ 
     if (index < 0 || index >= questions.length) {
         console.error(`Invalid question index: ${index} for paper ${paperId}`);
         return false;
