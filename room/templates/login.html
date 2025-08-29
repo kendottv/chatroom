@@ -15,8 +15,8 @@
             {{ form.as_p }}
             <button type="submit">登入</button>
         </form>
-        <p><a href="{% url 'register' %}">註冊新帳號</a></p>
-        <p><a href="{% url 'home' %}">返回首頁</a></p>
+        <p><a href="{% url 'room:register' %}">註冊新帳號</a></p>
+        <p><a href="{% url 'room:home' %}">返回首頁</a></p>
     </div>
 
     <script src="{% static 'js/login.js' %}"></script>

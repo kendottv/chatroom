@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
+from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.db import IntegrityError
 from django.db.models import Sum
@@ -602,7 +603,7 @@ def custom_login(request):
             user = form.cleaned_data['user']
             login(request, user)
             messages.success(request, f"歡迎，{user.username}！")
-            return redirect('home')
+            return redirect('room:home')  # 修正為 room:home
     else:
         form = CustomLoginForm()
     return render(request, 'login.html', {'form': form})
@@ -619,31 +620,52 @@ def register(request):
         form = CustomUserCreationForm()
     return render(request, 'register.html', {'form': form})
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from .models import ExamPaper, InteractionLog
+
+@login_required
 def ask_ai(request):
     if request.method == 'POST':
         prompt = request.POST.get('prompt', '').strip()
         paper_id = request.POST.get('paper_id', '').strip()
-        if not prompt or not paper_id:
-            return JsonResponse({'response': '請提供問題和考卷 ID'}, status=400)
 
-        try:
-            paper = ExamPaper.objects.get(id=paper_id)
-            used_count = InteractionLog.objects.filter(user=request.user, exam_paper=paper).count()
-            if paper.ai_total_limit > 0 and used_count >= paper.ai_total_limit:
-                return JsonResponse({'response': '已超過 AI 問答次數限制！'}, status=403)
+        if not prompt:
+            return JsonResponse({'status': 'error', 'message': '請輸入問題！'}, status=400)
 
-            # 模擬 AI 回應（可替換為真實 API）
-            response = f'這是對 "{prompt}" 的 AI 回覆（模擬）'
+        if paper_id:
+            # 有考卷時，檢查限制
+            try:
+                paper = ExamPaper.objects.get(id=paper_id)
+                used_count = InteractionLog.objects.filter(user=request.user, exam_paper=paper).count()
+                if paper.ai_total_limit > 0 and used_count >= paper.ai_total_limit:
+                    return JsonResponse({'status': 'error', 'message': '已超過 AI 問答次數限制！'}, status=403)
+
+                # 模擬 AI 回應（可替換為真實 API）
+                response_text = f'這是對 "{prompt}" 的 AI 回覆（來自考試模擬，時間：{timezone.now().strftime("%Y-%m-%d %H:%M:%S CST")})'
+                InteractionLog.objects.create(
+                    user=request.user,
+                    question=prompt,
+                    response=response_text,
+                    exam_paper=paper
+                )
+                return JsonResponse({'status': 'success', 'response': response_text})
+            except ExamPaper.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': '考卷不存在'}, status=404)
+        else:
+            # 無考卷時，無限制提問
+            response_text = f'這是對 "{prompt}" 的 AI 回覆（無考卷模式，時間：{timezone.now().strftime("%Y-%m-%d %H:%M:%S CST")})'
             InteractionLog.objects.create(
                 user=request.user,
                 question=prompt,
-                response=response,
-                exam_paper=paper
+                response=response_text,
+                exam_paper=None
             )
-            return JsonResponse({'response': response})
-        except ExamPaper.DoesNotExist:
-            return JsonResponse({'response': '考卷不存在'}, status=404)
-    return JsonResponse({'response': '請使用 POST 方法提交提問'}, status=405)
+            return JsonResponse({'status': 'success', 'response': response_text})
+
+    return JsonResponse({'status': 'error', 'message': '請使用 POST 方法提交提問'}, status=405)
 
 def upload_question(request):
     if request.method == 'POST' and request.user.is_staff:
@@ -804,4 +826,6 @@ def submit_single_answer(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return JsonResponse({'status': 'error', 'message': '僅接受 POST 請求'}, status=405)
 
-logout = LogoutView.as_view(next_page='home')
+def logout(request):
+    auth_logout(request)  # 執行登出
+    return redirect('room:home')

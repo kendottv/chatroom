@@ -38,12 +38,13 @@
                     <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="{{ exam_papers.0.ai_total_limit }}">{{ exam_papers.0.ai_total_limit }}</span></p>
                     <input type="hidden" id="current-paper-id" value="{{ exam_papers.0.id }}">
                 {% else %}
-                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">無可用考卷</span></p>
-                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display">無可用考卷</span></p>
+                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">無考卷，無限制提問</span></p>
+                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="0">無限制</span></p>
+                    <input type="hidden" id="current-paper-id" value="">
                 {% endif %}
             </div>
             <textarea id="ai_question" class="form-control mb-2 ai-input" placeholder="請輸入您的問題，例如：&#10;• 這道題目的關鍵概念是什麼？&#10;• 我應該如何理解這個問題？&#10;• 能否解釋一下相關知識點？"></textarea>
-            <button onclick="askAI()" class="btn btn-primary w-100 ai-btn" {% if not exam_papers %}disabled{% endif %}>💬 向 AI 提問</button>
+            <button onclick="askAI()" class="btn btn-primary w-100 ai-btn" {% if not exam_papers %} {% else %} {% endif %}>💬 向 AI 提問</button>
             <div id="ai-response" class="ai-response mt-3 p-2 border rounded">
                 AI 回應將顯示在這裡...
                 <br><br>

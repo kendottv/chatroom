@@ -62,7 +62,7 @@ function switchQuestion(paperId, index) {
         console.error(`No questions found for paper ${paperId}`);
         return false;
     }
- 
+
     if (index < 0 || index >= questions.length) {
         console.error(`Invalid question index: ${index} for paper ${paperId}`);
         return false;
@@ -246,7 +246,7 @@ async function askAI() {
         return;
     }
 
-    const paperId = paperIdInput.value;
+    const paperId = paperIdInput.value.trim();
     const question = questionInput.value.trim();
 
     if (!question) {
@@ -268,14 +268,16 @@ async function askAI() {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-CSRFToken': getCookie('csrftoken'),
             },
-            body: `prompt=${encodeURIComponent(question)}&paper_id=${paperId}&csrfmiddlewaretoken=${getCookie('csrftoken')}`
+            body: `prompt=${encodeURIComponent(question)}&paper_id=${paperId || ''}&csrfmiddlewaretoken=${getCookie('csrftoken')}`
         });
 
         const data = await response.json();
         if (data.response) {
             responseDiv.innerHTML = `AI 回應：${data.response}`;
-            const remaining = parseInt(remainingDisplay.textContent) - 1;
-            remainingDisplay.textContent = remaining >= 0 ? remaining : 0;
+            if (paperId) {
+                const remaining = parseInt(remainingDisplay.textContent) - 1;
+                remainingDisplay.textContent = remaining >= 0 ? remaining : 0;
+            }
             questionInput.value = '';
         } else {
             responseDiv.innerHTML = `❌ 錯誤：${data.response || '無法獲取 AI 回應'}`;

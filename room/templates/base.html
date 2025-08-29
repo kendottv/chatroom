@@ -2,6 +2,8 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="計算機概論學習平台">
     <title>{% block title %}計算機概論 - 首頁{% endblock %}</title>
     {% load static %}
 
@@ -13,69 +15,120 @@
 
     <!-- 基礎 CSS -->
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
+
+    <!-- 額外的頁面 CSS -->
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- 側邊欄遮罩層 -->
+    <div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
+    
     <div class="container">
-        <div class="sidebar">
+        <nav class="sidebar" id="sidebar" role="navigation" aria-label="主選單">
             <h2>計算機概論</h2>
-            <a href="{% url 'room:home' %}">🏠 首頁</a>
-            <a href="{% url 'room:exam' %}">📝 考試</a>
-            <a href="{% url 'room:history' %}">⏳ 歷史</a>
-            <a href="{% url 'room:readme' %}">📖 ReadMe</a>
-            <a href="{% url 'room:profile' %}">👤 個人資料</a>
+            <a href="{% url 'room:home' %}" aria-label="首頁">🏠 首頁</a>
+            <a href="{% url 'room:exam' %}" aria-label="考試">📝 考試</a>
+            <a href="{% url 'room:history' %}" aria-label="歷史記錄">⏳ 歷史</a>
+            <a href="{% url 'room:readme' %}" aria-label="說明文件">📖 ReadMe</a>
+            <a href="{% url 'room:profile' %}" aria-label="個人資料">👤 個人資料</a>
+            
             {% if not user.is_authenticated %}
-                <a href="{% url 'room:login' %}">🔑 登入</a>
+                <a href="{% url 'room:login' %}" aria-label="登入">🔑 登入</a>
             {% else %}
-                <form action="{% url 'room:logout' %}" method="post" style="margin: 0;">
+                <form action="{% url 'room:logout' %}" method="post" class="logout-form">
                     {% csrf_token %}
-                    <button type="submit" style="width: 100%; background: none; border: none; color: white; text-align: left; padding: 8px 0; cursor: pointer;">
-                    🚪 登出
-                    </button>
+                    <button type="submit" aria-label="登出">🚪 登出</button>
                 </form>
             {% endif %}
+            
             {% if user.is_authenticated and user.is_staff %}
-                <a href="{% url 'room:teacher_exam' %}">📝 出題</a>
-                <a href="{% url 'room:student_exam_history' %}">📋 學生考試歷史</a>
+                <a href="{% url 'room:teacher_exam' %}" aria-label="出題">📝 出題</a>
+                <a href="{% url 'room:student_exam_history' %}" aria-label="學生考試歷史">📋 學生考試歷史</a>
             {% endif %}
-        </div>
+        </nav>
 
         <div class="main">
             <div class="main-inner">
-                <header>
+                <header role="banner">
                     <div class="header-left">
+                        <button class="menu-toggle" id="menu-toggle" 
+                                aria-label="切換選單" 
+                                aria-expanded="false"
+                                aria-controls="sidebar">
+                            <i class="fas fa-bars" aria-hidden="true"></i>
+                            <span class="sr-only">選單</span>
+                        </button>
+                        
                         {% if user.is_authenticated %}
                             {% if user.avatar %}
-                                <img src="{{ user.avatar.url }}" alt="頭像" class="avatar">
+                                <img src="{{ user.avatar.url }}" alt="{{ user.username }}的頭像" class="avatar">
                             {% else %}
                                 <img src="{% static 'images/default_avatar.png' %}" alt="預設頭像" class="avatar">
                             {% endif %}
-                            <div class="welcome-text">歡迎回來，<span class="username">{{ user.username }}</span></div>
+                            <div class="welcome-text">
+                                歡迎回來，<span class="username">{{ user.username }}</span>
+                                
+                                {% if user.is_staff %}
+                                    <span class="user-role">[管理員]</span>
+                                {% else %}
+                                    <span class="user-role">[一般用戶]</span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="welcome-text">
+                                歡迎使用計算機概論學習平台
+                            </div>
                         {% endif %}
                     </div>
-                    <div class="navbar">
+                    
+                    <nav class="navbar" role="navigation" aria-label="工具列">
                         {% if user.is_authenticated %}
-                            <button id="toggleNightMode">🌙 夜間模式</button>
+                            <button id="toggleNightMode" aria-label="切換夜間模式">
+                                🌙 夜間模式
+                            </button>
                         {% endif %}
-                    </div>
+                    </nav>
                 </header>
 
-                <div class="content">
+                <main class="content" role="main">
                     {% if messages %}
-                        {% for message in messages %}
-                            <div class="message {{ message.tags }}">
-                                {{ message }}
-                            </div>
-                        {% endfor %}
+                        <div class="messages-container" role="alert" aria-live="polite">
+                            {% for message in messages %}
+                                <div class="message {{ message.tags }}">
+                                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        </div>
                     {% endif %}
-                    {% block content %}{% endblock %}
-                </div>
+                    
+                    {% block content %}
+                        <article class="post">
+                            <h1>歡迎使用計算機概論學習平台</h1>
+                            <p>這是一個響應式的學習平台，支援桌面、平板和手機等各種裝置。</p>
+                        </article>
+                    {% endblock %}
+                </main>
 
-                <div class="footer">期末專案 © 2025</div>
+                <footer class="footer" role="contentinfo">
+                    <p>期末專案 © 2025 </p>
+                </footer>
             </div>
         </div>
     </div>
 
     <!-- 基礎 JavaScript -->
     <script src="{% static 'js/base.js' %}"></script>
+    
+    <!-- 額外的頁面 JavaScript -->
+    {% block extra_js %}{% endblock %}
+    
+    {% if debug %}
+    <script>
+        console.log('Django Debug 模式已啟用');
+        console.log('當前用戶:', '{{ user.username|default:"未登入" }}');
+        console.log('用戶權限:', '{{ user.is_staff|yesno:"管理員,一般用戶,未登入" }}');
+    </script>
+    {% endif %}
 </body>
 </html>
