@@ -37,6 +37,7 @@ urlpatterns = [
     path('upload_question/', views.upload_question, name='upload_question'),  # 出題提交
     path('ask_exam_question/', views.ask_exam_question, name='ask_exam_question'),  # 回答問題
     path('student_exam_history/', views.student_exam_history, name='student_exam_history'),
+    path("webhooks/ai/", views.ai_webhook, name="ai_webhook"),
 ]
 
 # 僅在 DEBUG 模式下服務靜態文件和媒體文件

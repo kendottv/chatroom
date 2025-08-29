@@ -485,32 +485,33 @@
     </style>
     <script>
         function askAI() {
-            const question = document.getElementById('ai_question').value.trim();
-            if (!question) {
-                alert('請輸入問題');
-                return;
-            }
-            
-            const responseDiv = document.getElementById('ai-response');
-            responseDiv.innerHTML = '🤖 正在處理您的問題，請稍候...';
-            
-            fetch('/exam/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: `ai_question=${encodeURIComponent(question)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                responseDiv.innerHTML = data.response || '無法獲得回應，請稍後再試。';
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                responseDiv.innerHTML = '❌ 發生錯誤，請檢查網路連接或稍後再試。';
-            });
-        }
+  const question = document.getElementById('ai_question').value.trim();
+  if (!question) {
+    alert('請輸入問題');
+    return;
+  }
+
+  const responseDiv = document.getElementById('ai-response');
+  responseDiv.innerHTML = '🤖 正在處理您的問題，請稍候...';
+
+  fetch('/webhooks/ai/', {
+    method: 'POST',
+    credentials: 'include', // ★ 同網域帶 cookie，後端才能用 request.session
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+    },
+    body: JSON.stringify({ prompt: question }) // 同網域不必傳 session_key
+  })
+  .then(r => r.json())
+  .then(data => {
+    responseDiv.innerHTML = data.response || '無法獲得回應，請稍後再試。';
+  })
+  .catch(err => {
+    console.error('Error:', err);
+    responseDiv.innerHTML = '❌ 發生錯誤，請稍後再試。';
+  });
+}
 
         function confirmSubmit() {
             return confirm('確定要提交考卷嗎？提交後將無法修改答案。');
