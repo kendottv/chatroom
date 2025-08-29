@@ -7,7 +7,7 @@ from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.utils import timezone
 from django.db import IntegrityError
-from django.db.models import Sum  # 新增導入
+from django.db.models import Sum
 from .models import CustomUser, ExamQuestion, ExamPaper, InteractionLog, StudentExamHistory, ExamAnswer, ExamRecord
 from .forms import CustomLoginForm, CustomUserCreationForm, AvatarUpdateForm
 import bleach
@@ -148,6 +148,7 @@ def exam(request):
                     messages.error(request, f"提交過程中發生錯誤：{str(e)}")
                     print(f"Exception in exam submission: {e}")
 
+    # GET 請求的處理
     # 獲取所有考卷並檢查完成狀態
     all_papers = ExamPaper.objects.all().prefetch_related('questions')
     exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
@@ -159,17 +160,60 @@ def exam(request):
         if paper.publish_time <= current_time and paper.end_time > current_time and
         not exam_records_dict.get(paper.id, {}).get('is_completed', False)
     ]
+    
+    # 計算每個考卷的 AI 問答次數限制
     for paper in available_papers:
         paper.ai_total_limit = sum(q.ai_limit for q in paper.questions.all())
 
+    # 獲取學生已保存的答案並為每個考卷和問題準備數據
+    student_answers = {}
+    
+    if available_papers:
+        # 獲取所有可用考卷的已保存答案
+        paper_ids = [paper.id for paper in available_papers]
+        saved_answers = ExamAnswer.objects.filter(
+            exam_record__student=request.user,
+            exam_record__exam_paper_id__in=paper_ids,
+            exam_record__is_completed=False  # 只獲取未完成考試的答案
+        ).select_related('exam_record', 'exam_question')
+        
+        # 組織答案數據為嵌套字典
+        for answer in saved_answers:
+            paper_id = answer.exam_record.exam_paper_id
+            question_id = answer.exam_question.id
+            
+            if paper_id not in student_answers:
+                student_answers[paper_id] = {}
+            student_answers[paper_id][question_id] = answer.student_answer or ""
+    
+    # 為每個考卷添加問題和答案信息
+    for paper in available_papers:
+        paper.questions_with_answers = []
+        paper_answers = student_answers.get(paper.id, {})
+        
+        for question in paper.questions.all():
+            question.student_answer = paper_answers.get(question.id, "")
+            # 處理多選題的答案格式
+            if question.question_type == 'mcq' and question.student_answer:
+                if isinstance(question.student_answer, str):
+                    question.student_answer_list = question.student_answer.split(',')
+                else:
+                    question.student_answer_list = question.student_answer if isinstance(question.student_answer, list) else []
+            else:
+                question.student_answer_list = []
+            
+            paper.questions_with_answers.append(question)
+    
     if not available_papers:
         messages.info(request, "目前沒有進行中的考試。請聯繫管理員或檢查時間設置。")
 
-    return render(request, 'exam.html', {
+    context = {
         'exam_papers': available_papers,
         'exam_records': exam_records_dict,
         'user': request.user,
-    })
+    }
+    
+    return render(request, 'exam.html', context)
 
 def teacher_exam(request):
     """
@@ -274,13 +318,12 @@ def teacher_exam(request):
                 correct_option_indices = sa_answer if sa_answer else None
 
             try:
-                max_attempts = int(request.POST.get('max_attempts', 1))
                 points = int(request.POST.get('points', 10))
                 ai_limit = int(ai_limit)
-                if max_attempts < 1 or points < 0 or points > 100 or ai_limit < 1:
-                    raise ValueError("無效的嘗試次數、配分或 AI 問答次數限制")
+                if points < 0 or points > 100 or ai_limit < 0:
+                    raise ValueError("無效的配分或 AI 問答次數限制")
             except (ValueError, TypeError) as e:
-                messages.error(request, f"無效的嘗試次數、配分或 AI 問答次數限制：{str(e)}")
+                messages.error(request, f"無效的配分或 AI 問答次數限制：{str(e)}")
                 return render(request, 'teacher_exam.html', {
                     'all_questions': all_questions,
                     'question_to_edit': question_to_edit,
@@ -301,7 +344,6 @@ def teacher_exam(request):
                     exam_question.options = options if options else None
                     exam_question.is_correct = is_correct
                     exam_question.correct_option_indices = correct_option_indices
-                    exam_question.max_attempts = max_attempts
                     exam_question.points = points
                     exam_question.ai_limit = ai_limit
                     if image:
@@ -317,7 +359,6 @@ def teacher_exam(request):
                         options=options if options else None,
                         is_correct=is_correct,
                         correct_option_indices=correct_option_indices,
-                        max_attempts=max_attempts,
                         points=points,
                         ai_limit=ai_limit,
                         created_by=request.user,
@@ -608,26 +649,24 @@ def upload_question(request):
     if request.method == 'POST' and request.user.is_staff:
         title = request.POST.get('title', '無題目標題')
         content = request.POST.get('question', '')
-        max_attempts = request.POST.get('max_attempts', 1)
         ai_limit = request.POST.get('ai_limit', 0)  # 新增：AI 問答次數限制
         image = request.FILES.get('image') if 'image' in request.FILES else None
         if content:
             exam_question = ExamQuestion.objects.create(
                 title=title,
                 content=content,
-                max_attempts=max_attempts,
                 ai_limit=ai_limit,  # 新增：儲存 ai_limit
                 created_by=request.user,
                 image=image
             )
             InteractionLog.objects.create(
                 user=request.user,
-                question=f"題目: {content}, 最大次數: {max_attempts}, AI 次數限制: {ai_limit}",
+                question=f"題目: {content}, AI 次數限制: {ai_limit}",
                 response="題目已成功創建",
                 exam_question=exam_question,
                 exam_paper=None
             )
-            return HttpResponse(f"題目 '{title}' 已上傳，最大提問次數: {max_attempts}，AI 問答次數限制: {ai_limit}")
+            return HttpResponse(f"題目 '{title}' 已上傳，AI 問答次數限制: {ai_limit}")
     return HttpResponse("無權限或請使用 POST 方法提交題目。")
 
 def ask_exam_question(request):
@@ -675,8 +714,9 @@ def submit_single_answer(request):
             question_id = data.get('question_id')
             answer = data.get('answer')
 
-            if not all([paper_id, question_id, answer is not None]):
-                return JsonResponse({'status': 'error', 'message': '缺少必要參數'}, status=400)
+            # 檢查必要參數
+            if not all([paper_id, question_id]):
+                return JsonResponse({'status': 'error', 'message': '缺少必要參數（考卷 ID 或題目 ID）'}, status=400)
 
             # 獲取相關物件
             exam_paper = get_object_or_404(ExamPaper, id=paper_id)
@@ -687,42 +727,48 @@ def submit_single_answer(request):
                 defaults={'score': 0, 'is_completed': False}
             )
 
-            # 檢查答題次數限制
-            if exam_question.max_attempts > 0:
-                answer_count = ExamAnswer.objects.filter(exam_record=exam_record, exam_question=exam_question).count()
-                if answer_count >= exam_question.max_attempts:
-                    return JsonResponse({'status': 'error', 'message': '已超過最大答題次數'}, status=403)
+            # 處理 answer，可能為 None、空字符串或空列表
+            if answer is None:
+                student_answer = None
+            elif isinstance(answer, list) and not answer:
+                student_answer = []  # 保留空列表以表示未選項
+            elif isinstance(answer, str) and not answer.strip():
+                student_answer = ""  # 保留空字符串以表示未輸入
+            else:
+                student_answer = answer
 
             # 判斷答案是否正確
             is_correct = False
             if exam_question.question_type == 'sc':
                 try:
-                    user_option = int(answer) if isinstance(answer, (int, str)) else None
+                    user_option = int(student_answer) if student_answer is not None and student_answer != "" else None
                     correct_option = int(exam_question.correct_option_indices) if exam_question.correct_option_indices else None
                     is_correct = user_option == correct_option
                 except (ValueError, TypeError):
                     is_correct = False
             elif exam_question.question_type == 'mcq':
                 try:
-                    user_options = sorted(map(str, answer)) if isinstance(answer, (list, tuple)) else sorted(answer.split(',')) if answer else []
+                    user_options = sorted(map(str, student_answer)) if isinstance(student_answer, list) else sorted(student_answer.split(',')) if student_answer else []
                     correct_options = sorted(exam_question.correct_option_indices.split(',')) if exam_question.correct_option_indices else []
                     is_correct = user_options == correct_options
                 except:
                     is_correct = False
             elif exam_question.question_type == 'tf':
-                user_bool = str(answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確']
+                user_bool = str(student_answer).lower() in ['true', '1', 't', 'yes', 'y', '是', '對', '正確'] if student_answer else None
                 is_correct = user_bool == exam_question.is_correct
             elif exam_question.question_type in ['sa', 'essay']:
-                is_correct = str(answer).strip().lower() == str(exam_question.correct_option_indices).strip().lower() if exam_question.correct_option_indices else False
+                is_correct = str(student_answer).strip().lower() == str(exam_question.correct_option_indices).strip().lower() if student_answer and exam_question.correct_option_indices else False
 
-            # 儲存答題紀錄
-            exam_answer = ExamAnswer.objects.create(
+            # 儲存或更新答題紀錄
+            exam_answer, created = ExamAnswer.objects.update_or_create(
                 exam_record=exam_record,
                 exam_question=exam_question,
-                student_answer=str(answer) if answer else None,
-                score=exam_question.points if is_correct else 0,
-                is_correct=is_correct,
-                answered_at=timezone.now()
+                defaults={
+                    'student_answer': student_answer,
+                    'score': exam_question.points if is_correct else 0,
+                    'is_correct': is_correct,
+                    'answered_at': timezone.now()
+                }
             )
 
             # 更新總分
@@ -733,8 +779,8 @@ def submit_single_answer(request):
             # 記錄互動
             InteractionLog.objects.create(
                 user=request.user,
-                question=f"題目: {exam_question.title or exam_question.content[:50]}..., 回答: {answer or '未作答'}",
-                response=f"回答 {'正確' if is_correct else '錯誤'}, 得分: {exam_answer.score}/{exam_question.points}",
+                question=f"題目: {exam_question.title or exam_question.content[:50]}..., 回答: {student_answer if student_answer is not None else '未作答'}",
+                response=f"回答 {'正確' if is_correct else '錯誤' if exam_question.correct_option_indices or exam_question.is_correct else '已記錄'}, 得分: {exam_answer.score}/{exam_question.points}",
                 exam_question=exam_question,
                 exam_paper=exam_paper,
                 score=exam_answer.score

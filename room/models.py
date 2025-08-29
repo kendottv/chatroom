@@ -30,7 +30,6 @@ class ExamQuestion(models.Model):
     options = models.JSONField(null=True, blank=True, verbose_name="選項列表")  # 例如 ["a", "b", "c"] 或 [1, 2, 3]
     is_correct = models.BooleanField(default=False, verbose_name="是否正確", null=True, blank=True)  # 專用於 tf 題型
     correct_option_indices = models.TextField(null=True, blank=True, verbose_name="正確選項索引")  # 專用於 sc 和 mcq
-    max_attempts = models.IntegerField(default=1, validators=[MinValueValidator(1)], verbose_name="最大嘗試次數")
     points = models.IntegerField(default=10, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="配分")
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, verbose_name="創建者")
     image = models.ImageField(upload_to='questions/', null=True, blank=True, verbose_name="題目圖片")

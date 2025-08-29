@@ -70,17 +70,16 @@ class AvatarUpdateForm(forms.ModelForm):
 # 題目表單
 class QuestionForm(forms.ModelForm):
     """
-    表單用於新增或編輯考試題目，支援題目標題、題型、內容、選項、正確答案、嘗試次數、配分、圖片和 AI 問答次數限制。
+    表單用於新增或編輯考試題目，支援題目標題、題型、內容、選項、正確答案、配分、圖片和 AI 問答次數限制。
     """
     class Meta:
         model = ExamQuestion
-        fields = ['title', 'question_type', 'content', 'options', 'correct_option_indices', 'is_correct', 'max_attempts', 'points', 'image', 'ai_limit']
+        fields = ['title', 'question_type', 'content', 'options', 'correct_option_indices', 'is_correct', 'points', 'image', 'ai_limit']
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': '輸入題目標題'}),
             'content': forms.Textarea(attrs={'rows': 5, 'placeholder': '輸入題目內容'}),
             'options': forms.Textarea(attrs={'rows': 4, 'placeholder': '輸入選項，每行一個（僅限單選/多選題）'}),
             'correct_option_indices': forms.TextInput(attrs={'placeholder': '輸入正確選項索引（例如：0 或 0,1）'}),
-            'max_attempts': forms.NumberInput(attrs={'min': 1, 'value': 1}),
             'points': forms.NumberInput(attrs={'min': 0, 'max': 100, 'value': 10}),
             'ai_limit': forms.NumberInput(attrs={'min': 0, 'value': 0, 'placeholder': '0 表示無限制'}),
             'image': forms.FileInput(attrs={'accept': 'image/*'}),

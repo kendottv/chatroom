@@ -5,21 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>考試</title>
     {% load static %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/exam.css' %}">
 </head>
 <body>
-    <!-- 簡單導航欄 -->
-    <nav>
-        <div>
-            <a href="{% url 'room:home' %}" style="margin-right: 20px;">首頁</a>
-            <a href="{% url 'room:exam' %}" style="margin-right: 20px;">考試</a>
+    <!-- 簡單導航欄（黑色背景） -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'room:home' %}">首頁</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="{% url 'room:exam' %}">考試</a>
+            </div>
         </div>
     </nav>
 
     <!-- 資訊欄 -->
-    <div class="info-bar">
-        <span>學號: {{ user.student_id }}</span>
-        <span>姓名: {{ user.username }}</span>
+    <div class="info-bar container mt-3">
+        <span>學號: {{ user.student_id }}</span> | 
+        <span>姓名: {{ user.username }}</span> | 
         <span>班級: {{ user.class_name }}</span>
     </div>
 
@@ -31,7 +34,7 @@
             <div class="ai-description">
                 如果您在考試過程中有疑問，可以向 AI 助手提問獲得幫助
                 {% if exam_papers %}
-                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">{{ exam_papers.0.ai_total_limit }} 次（0 表示無限制）</span></p>
+                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">{{ exam_papers.0.ai_total_limit }} 次</span></p>
                     <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="{{ exam_papers.0.ai_total_limit }}">{{ exam_papers.0.ai_total_limit }}</span></p>
                     <input type="hidden" id="current-paper-id" value="{{ exam_papers.0.id }}">
                 {% else %}
@@ -39,9 +42,9 @@
                     <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display">無可用考卷</span></p>
                 {% endif %}
             </div>
-            <textarea id="ai_question" class="ai-input" placeholder="請輸入您的問題，例如：&#10;• 這道題目的關鍵概念是什麼？&#10;• 我應該如何理解這個問題？&#10;• 能否解釋一下相關知識點？"></textarea>
-            <button onclick="askAI()" class="ai-btn" {% if not exam_papers %}disabled{% endif %}>💬 向 AI 提問</button>
-            <div id="ai-response" class="ai-response">
+            <textarea id="ai_question" class="form-control mb-2 ai-input" placeholder="請輸入您的問題，例如：&#10;• 這道題目的關鍵概念是什麼？&#10;• 我應該如何理解這個問題？&#10;• 能否解釋一下相關知識點？"></textarea>
+            <button onclick="askAI()" class="btn btn-primary w-100 ai-btn" {% if not exam_papers %}disabled{% endif %}>💬 向 AI 提問</button>
+            <div id="ai-response" class="ai-response mt-3 p-2 border rounded">
                 AI 回應將顯示在這裡...
                 <br><br>
                 💡 <strong>使用提示：</strong>
@@ -54,7 +57,7 @@
         </div>
 
         <!-- 分隔線 -->
-        <div class="divider"></div>
+        <div class="divider d-none d-md-block" style="width: 1px; background-color: #ddd;"></div>
 
         <!-- 考卷區域（右側） -->
         <div class="exam-paper-section">
@@ -62,40 +65,39 @@
             {% if messages %}
                 <div class="messages">
                     {% for message in messages %}
-                        <p class="{{ message.tags }}">{{ message }}</p>
+                        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
                     {% endfor %}
                 </div>
             {% endif %}
 
             <!-- 除錯資訊 -->
-            <p>Debug: exam_papers count = {{ exam_papers|length }}</p>
+            <p class="text-muted">Debug: exam_papers count = {{ exam_papers|length }}</p>
             {% if exam_papers %}
                 {% for paper in exam_papers %}
-                    <p>Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions, AI Limit: {{ paper.ai_total_limit }}</p>
+                    <p class="text-muted">Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions, AI Limit: {{ paper.ai_total_limit }}</p>
                     <div class="exam-paper" data-paper-id="{{ paper.id }}">
                         <div class="exam-header">
                             <h3 class="exam-title">📝 {{ paper.title }}</h3>
                             <div class="exam-info">
                                 <p><strong>總分：</strong>{{ paper.total_points }} 分</p>
                                 <p><strong>題目數量：</strong>{{ paper.questions.count }} 題</p>
-                                <p><strong>AI 問答次數限制：</strong>{{ paper.ai_total_limit }} 次（0 表示無限制）</p>
+                                <p><strong>AI 問答次數限制：</strong>{{ paper.ai_total_limit }} 次</p>
                             </div>
                         </div>
                         
-                        <form method="post" action="{% url 'room:exam' %}" id="exam-form-{{ paper.id }}" onsubmit="return confirmAction(event, this)">
+                        <form method="post" action="{% url 'room:exam' %}" id="exam-form-{{ paper.id }}">
                             {% csrf_token %}
                             <input type="hidden" name="paper_id" value="{{ paper.id }}">
                             <input type="hidden" name="answers" id="answers-{{ paper.id }}">
 
                             <!-- 題目切換區域 -->
-                            <div class="question-nav">
+                            <div class="question-nav mb-3">
                                 <span id="current-question-{{ paper.id }}">第 1 題 / {{ paper.questions.count }} 題</span>
-                                <button type="button" id="prev-question-{{ paper.id }}" class="nav-btn" disabled>上一題</button>
-                                <button type="button" id="next-question-{{ paper.id }}" class="nav-btn">下一題</button>
-                                <button type="button" id="submit-answer-{{ paper.id }}" class="submit-btn" onclick="submitSingleAnswer('{{ paper.id }}')">提交此題</button>
+                                <button type="button" id="prev-question-{{ paper.id }}" class="btn btn-secondary nav-btn" disabled>上一題</button>
+                                <button type="button" id="next-question-{{ paper.id }}" class="btn btn-primary nav-btn">下一題</button>
                             </div>
 
-                            {% for question in paper.questions.all %}
+                            {% for question in paper.questions_with_answers %}
                                 <div class="question-container" data-question-id="{{ question.id }}" {% if forloop.first %}data-active="true"{% endif %}>
                                     <div class="question-header">
                                         <span class="question-number">📌 第 {{ forloop.counter }} 題</span>
@@ -111,7 +113,7 @@
                                     
                                     {% if question.image %}
                                         <div class="question-image">
-                                            <img src="{{ question.image.url }}" alt="題目圖片">
+                                            <img src="{{ question.image.url }}" alt="題目圖片" class="img-fluid">
                                         </div>
                                     {% endif %}
                                     
@@ -119,9 +121,10 @@
                                         {% if question.options and question.options|length > 0 %}
                                             <div class="options-container">
                                                 {% for option in question.options %}
-                                                    <div class="option-item">
-                                                        <input type="radio" name="answer-{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" required>
-                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
+                                                    <div class="option-item form-check">
+                                                        <input type="radio" name="answer-{{ question.id }}" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" class="form-check-input"
+                                                            {% if question.student_answer == forloop.counter0|stringformat:"s" %}checked{% endif %}>
+                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}" class="form-check-label">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
                                                     </div>
                                                 {% endfor %}
                                             </div>
@@ -130,49 +133,47 @@
                                         {% if question.options and question.options|length > 0 %}
                                             <div class="options-container">
                                                 {% for option in question.options %}
-                                                    <div class="option-item">
-                                                        <input type="checkbox" name="answer-{{ question.id }}[]" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}">
-                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
+                                                    <div class="option-item form-check">
+                                                        <input type="checkbox" name="answer-{{ question.id }}[]" value="{{ forloop.counter0 }}" id="q{{ question.id }}_opt{{ forloop.counter0 }}" class="form-check-input"
+                                                            {% if forloop.counter0|stringformat:"s" in question.student_answer_list %}checked{% endif %}>
+                                                        <label for="q{{ question.id }}_opt{{ forloop.counter0 }}" class="form-check-label">{% if option %}{{ option }}{% else %}無選項{% endif %}</label>
                                                     </div>
                                                 {% endfor %}
                                             </div>
                                         {% endif %}
                                     {% elif question.question_type == 'tf' %}
                                         <div class="options-container">
-                                            <div class="option-item">
-                                                <input type="radio" name="answer-{{ question.id }}" value="true" id="q{{ question.id }}_true" required>
-                                                <label for="q{{ question.id }}_true">✅ 正確 (True)</label>
+                                            <div class="option-item form-check">
+                                                <input type="radio" name="answer-{{ question.id }}" value="true" id="q{{ question.id }}_true" class="form-check-input"
+                                                    {% if question.student_answer == 'true' %}checked{% endif %}>
+                                                <label for="q{{ question.id }}_true" class="form-check-label">✅ 正確 (True)</label>
                                             </div>
-                                            <div class="option-item">
-                                                <input type="radio" name="answer-{{ question.id }}" value="false" id="q{{ question.id }}_false" required>
-                                                <label for="q{{ question.id }}_false">❌ 錯誤 (False)</label>
+                                            <div class="option-item form-check">
+                                                <input type="radio" name="answer-{{ question.id }}" value="false" id="q{{ question.id }}_false" class="form-check-input"
+                                                    {% if question.student_answer == 'false' %}checked{% endif %}>
+                                                <label for="q{{ question.id }}_false" class="form-check-label">❌ 錯誤 (False)</label>
                                             </div>
                                         </div>
-                                    {% elif question.question_type == 'sa' %}
+                                    {% elif question.question_type == 'sa' or question.question_type == 'essay' %}
                                         <div class="text-answer">
-                                            <label for="answer-{{ question.id }}"><strong>請輸入您的答案：</strong></label>
-                                            <textarea name="answer-{{ question.id }}" id="answer-{{ question.id }}" rows="6" placeholder="請在此輸入您的詳細答案..."></textarea>
-                                        </div>
-                                    {% else %}
-                                        <div class="text-answer">
-                                            <label for="answer-{{ question.id }}"><strong>請輸入您的答案：</strong></label>
-                                            <input type="text" name="answer-{{ question.id }}" id="answer-{{ question.id }}" placeholder="請輸入答案...">
+                                            <label for="answer-{{ question.id }}" class="form-label"><strong>請輸入您的答案：</strong></label>
+                                            <textarea name="answer-{{ question.id }}" id="answer-{{ question.id }}" rows="6" class="form-control" placeholder="請在此輸入您的詳細答案...">{{ question.student_answer }}</textarea>
                                         </div>
                                     {% endif %}
                                 </div>
                             {% endfor %}
                             
                             <div class="submit-section">
-                                <button type="submit" class="submit-btn">📤 提交考卷</button>
+                                <button type="submit" class="btn btn-success submit-btn">📤 提交考卷</button>
                                 {% if user.is_staff %}
-                                    <button type="submit" name="end_exam" value="1" class="submit-btn end-btn">🔚 結束考試</button>
+                                    <button type="submit" name="end_exam" value="1" class="btn btn-danger end-btn">🔚 結束考試</button>
                                 {% endif %}
                             </div>
                         </form>
                     </div>
                 {% endfor %}
             {% else %}
-                <div class="no-exam-message">
+                <div class="no-exam-message alert alert-info">
                     <h3>📋 目前沒有可用的考試</h3>
                     <p>請聯繫管理員或稍後再試</p>
                 </div>
@@ -181,8 +182,11 @@
     </div>
 
     <!-- 腳注 -->
-    <div class="footer">期末專案 © 2025</div>
+    <div class="footer text-center py-3 bg-light mt-4">期末專案 © 2025</div>
 
+    <!-- 引入 JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/exam.js' %}"></script>
 </body>
 </html>

@@ -373,6 +373,7 @@ nav a:hover {
 
 /* 題目容器 */
 .question-container {
+    display: none; /* 初始隱藏所有題目 */
     margin-bottom: 25px;
     padding: 20px;
     border: 1px solid var(--border-color);
@@ -380,6 +381,10 @@ nav a:hover {
     background-color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     transition: all 0.3s ease;
+}
+
+.question-container[data-active="true"] {
+    display: block; /* 第一題初始顯示，但 JS 會接管 */
 }
 
 [data-theme="dark"] .question-container {
