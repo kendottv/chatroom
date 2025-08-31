@@ -1,10 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <title>註冊 - 計算機概論</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/register.css' %}">
+    <link rel="stylesheet" href="{% static 'room/css/register.css' %}">
 </head>
 <body>
     <div class="register-container">
@@ -16,6 +17,6 @@
         </form>
         <p><a href="{% url 'room:login' %}">返回登入</a></p>
     </div>
-    <script src="{% static 'js/register.js' %}"></script>
+    <script src="{% static 'room/js/register.js' %}"></script>
 </body>
 </html>

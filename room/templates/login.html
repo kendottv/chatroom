@@ -1,11 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <title>登入 - 計算機概論</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/night_mode.css' %}">
-    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+    <link rel="stylesheet" href="{% static 'room/css/night_mode.css' %}">
+    <link rel="stylesheet" href="{% static 'room/css/login.css' %}">
 </head>
 <body>
     <div class="login-container">
@@ -19,6 +20,6 @@
         <p><a href="{% url 'room:home' %}">返回首頁</a></p>
     </div>
 
-    <script src="{% static 'js/login.js' %}"></script>
+    <script src="{% static 'room/js/login.js' %}"></script>
 </body>
 </html>

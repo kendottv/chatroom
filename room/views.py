@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 from django.contrib.auth.views import LogoutView
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -15,6 +15,12 @@ import bleach
 from django.utils.html import strip_tags
 import re
 import json
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import traceback
+from gemini_api.gemini import GeminiAPIWrapper
+from asgiref.sync import sync_to_async
+from django.template.response import TemplateResponse
 
 def home(request):
     return render(request, 'home.html')  # 首頁
@@ -615,7 +621,7 @@ def register(request):
             user = form.save()
             login(request, user)
             messages.success(request, f"註冊成功，歡迎 {user.username}！")
-            return redirect('home')
+            return redirect('room:home')
     else:
         form = CustomUserCreationForm()
     return render(request, 'register.html', {'form': form})
@@ -627,45 +633,44 @@ from django.utils import timezone
 from .models import ExamPaper, InteractionLog
 
 @login_required
-def ask_ai(request):
-    if request.method == 'POST':
-        prompt = request.POST.get('prompt', '').strip()
-        paper_id = request.POST.get('paper_id', '').strip()
+@csrf_exempt
+@require_POST
+async def ask_ai(request):
+    prompt = (request.POST.get('prompt') or '').strip()
+    if not prompt:
+        return HttpResponse("請提供 prompt 內容。", status=400)
 
-        if not prompt:
-            return JsonResponse({'status': 'error', 'message': '請輸入問題！'}, status=400)
+    # 確保/更新 session（避免在 async 直接觸發同步 DB）
+    async def ensure_session_and_touch():
+        if not request.session.session_key:
+            await sync_to_async(request.session.save)()
+        def _touch():
+            request.session['last_seen'] = timezone.now().isoformat()
+            request.session.save()
+        await sync_to_async(_touch)()
+        return request.session.session_key
 
-        if paper_id:
-            # 有考卷時，檢查限制
-            try:
-                paper = ExamPaper.objects.get(id=paper_id)
-                used_count = InteractionLog.objects.filter(user=request.user, exam_paper=paper).count()
-                if paper.ai_total_limit > 0 and used_count >= paper.ai_total_limit:
-                    return JsonResponse({'status': 'error', 'message': '已超過 AI 問答次數限制！'}, status=403)
+    session_key = await ensure_session_and_touch()
 
-                # 模擬 AI 回應（可替換為真實 API）
-                response_text = f'這是對 "{prompt}" 的 AI 回覆（來自考試模擬，時間：{timezone.now().strftime("%Y-%m-%d %H:%M:%S CST")})'
-                InteractionLog.objects.create(
-                    user=request.user,
-                    question=prompt,
-                    response=response_text,
-                    exam_paper=paper
-                )
-                return JsonResponse({'status': 'success', 'response': response_text})
-            except ExamPaper.DoesNotExist:
-                return JsonResponse({'status': 'error', 'message': '考卷不存在'}, status=404)
-        else:
-            # 無考卷時，無限制提問
-            response_text = f'這是對 "{prompt}" 的 AI 回覆（無考卷模式，時間：{timezone.now().strftime("%Y-%m-%d %H:%M:%S CST")})'
-            InteractionLog.objects.create(
-                user=request.user,
-                question=prompt,
-                response=response_text,
-                exam_paper=None
-            )
-            return JsonResponse({'status': 'success', 'response': response_text})
+    # 呼叫 Gemini（你的 wrapper 內部已處理 Redis 與聯網工具）
+    wrapper = GeminiAPIWrapper(session_key=session_key)
+    answer_text = await wrapper.async_get_response(prompt)
 
-    return JsonResponse({'status': 'error', 'message': '請使用 POST 方法提交提問'}, status=405)
+    # 避免觸發 request.user → 直接從 session 取 user_id
+    user_id = await sync_to_async(lambda: request.session.get('_auth_user_id'))()
+    user_id = int(user_id) if user_id else None
+
+    # ORM 寫入放到 thread
+    await sync_to_async(InteractionLog.objects.create)(
+        user_id=user_id,
+        question=prompt,
+        response=answer_text,
+    )
+
+    # ⭐ 關鍵修正：模板渲染在 thread 裡完成，避免在 async context 觸發同步 ORM
+    resp = TemplateResponse(request, "exam.html", {"response": answer_text})
+    await sync_to_async(resp.render)()   # 在 thread 中完成渲染
+    return resp
 
 def upload_question(request):
     if request.method == 'POST' and request.user.is_staff:
@@ -829,3 +834,61 @@ def submit_single_answer(request):
 def logout(request):
     auth_logout(request)  # 執行登出
     return redirect('room:home')
+
+@csrf_exempt
+@require_POST
+async def ai_webhook(request):
+    """
+    POST /webhooks/ai/
+    JSON: { "prompt": "...", "session_key": "可選：外部來源自行提供" }
+    回傳: { "response": "..." }
+    """
+    # 1) 解析 JSON
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return HttpResponseBadRequest("Invalid JSON")
+
+    prompt = (payload.get("prompt") or "").strip()
+    incoming_session_key = payload.get("session_key")  # 外部服務可提供
+    if not prompt:
+        return JsonResponse({"error": "請提供 prompt"}, status=400)
+
+    # 2) 取得/建立 session_key（同步存取包進 thread）
+    async def ensure_session_and_touch():
+        if incoming_session_key:
+            return incoming_session_key  # 外部來源直接用它
+
+        if not request.session.session_key:
+            await sync_to_async(request.session.save)()
+
+        def _touch():
+            request.session["last_seen"] = timezone.now().isoformat()
+            request.session.save()
+        await sync_to_async(_touch)()
+
+        return request.session.session_key
+
+    session_key = await ensure_session_and_touch()
+
+    # 3) 呼叫 Gemini（你的 wrapper 內有 Redis 兩小時上下文與 Web Access 設定）
+    wrapper = GeminiAPIWrapper(session_key=session_key)
+    answer_text = await wrapper.async_get_response(prompt)
+
+    # 4) 取得使用者 ID：不要碰 request.user（會觸發 ORM）
+    if incoming_session_key:
+        user_id = None  # 外部來源一般不記 user
+    else:
+        # ★ 這裡用同步 lambda 包起來，sync_to_async 只接受同步函式
+        user_id = await sync_to_async(lambda: request.session.get("_auth_user_id"))()
+        user_id = int(user_id) if user_id else None
+
+    # 5) 記錄互動（ORM 放入 thread）
+    await sync_to_async(InteractionLog.objects.create)(
+        user_id=user_id,
+        question=prompt,
+        response=answer_text,
+    )
+
+    # 6) 回傳 JSON
+    return JsonResponse({"response": answer_text}, status=200)
