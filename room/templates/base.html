@@ -1,4 +1,3 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -6,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="計算機概論學習平台">
     <title>{% block title %}計算機概論 - 首頁{% endblock %}</title>
+    {% load static %}
 
     <!-- Icon font -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
     <!-- 夜間模式 CSS -->
-    <link rel="stylesheet" href="{% static 'room/css/night_mode.css' %}">
+    <link rel="stylesheet" href="{% static 'css/night_mode.css' %}">
 
     <!-- 基礎 CSS -->
-    <link rel="stylesheet" href="{% static 'room/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
 
     <!-- 額外的頁面 CSS -->
     {% block extra_css %}{% endblock %}
@@ -37,7 +37,7 @@
             {% else %}
                 <form action="{% url 'room:logout' %}" method="post" class="logout-form">
                     {% csrf_token %}
-                    <button type="submit" aria-label="登出">🚪 登出</button>
+                    <button type="submit" class="logout-btn" data-no-js="true">🚪 登出</button>
                 </form>
             {% endif %}
             
@@ -118,7 +118,7 @@
     </div>
 
     <!-- 基礎 JavaScript -->
-    <script src="{% static 'room/js/base.js' %}"></script>
+    <script src="{% static 'js/base.js' %}"></script>
     
     <!-- 額外的頁面 JavaScript -->
     {% block extra_js %}{% endblock %}

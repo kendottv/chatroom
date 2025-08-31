@@ -143,6 +143,17 @@ function updateForm() {
         document.querySelectorAll('.option-input').forEach(input => {
             if (input) input.disabled = !['sc', 'mcq'].includes(questionType);
         });
+
+        // 禁用非當前題型的輸入框，防止提交無效值
+        const tfInputs = document.querySelectorAll('#true_false_container input[type="radio"]');
+        tfInputs.forEach(input => {
+            input.disabled = questionType !== 'tf';
+        });
+
+        const saInput = document.querySelector('#short_answer_container textarea');
+        if (saInput) {
+            saInput.disabled = questionType !== 'sa';
+        }
     } catch (error) {
         console.error('Error in updateForm:', error);
     }
@@ -170,7 +181,6 @@ function validateForm() {
         const scAnswers = document.querySelectorAll('.sc-answer:checked');
         const mcqAnswers = document.querySelectorAll('.mcq-answer:checked');
         const tfAnswers = document.querySelectorAll('input[name="correct_answer"]:checked');
-        const maxAttempts = document.querySelector('input[name="max_attempts"]').value;
         const points = document.querySelector('input[name="points"]').value;
         const aiLimit = document.querySelector('input[name="ai_limit"]').value;
 
@@ -192,10 +202,6 @@ function validateForm() {
             return false;
         }
 
-        if (parseInt(maxAttempts) < 1) {
-            alert('最大嘗試次數必須大於 0！');
-            return false;
-        }
         if (parseInt(points) < 0 || parseInt(points) > 100) {
             alert('配分必須在 0 到 100 之間！');
             return false;
