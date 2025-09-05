@@ -31,16 +31,7 @@
             <a href="{% url 'room:history' %}" aria-label="歷史記錄">⏳ 歷史</a>
             <a href="{% url 'room:readme' %}" aria-label="說明文件">📖 ReadMe</a>
             <a href="{% url 'room:profile' %}" aria-label="個人資料">👤 個人資料</a>
-            
-            {% if not user.is_authenticated %}
-                <a href="{% url 'room:login' %}" aria-label="登入">🔑 登入</a>
-            {% else %}
-                <form action="{% url 'room:logout' %}" method="post" class="logout-form">
-                    {% csrf_token %}
-                    <button type="submit" class="logout-btn" data-no-js="true">🚪 登出</button>
-                </form>
-            {% endif %}
-            
+
             {% if user.is_authenticated and user.is_staff %}
                 <a href="{% url 'room:teacher_exam' %}" aria-label="出題">📝 出題</a>
                 <a href="{% url 'room:student_exam_history' %}" aria-label="學生考試歷史">📋 學生考試歷史</a>

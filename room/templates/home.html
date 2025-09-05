@@ -5,11 +5,26 @@
 {% block content %}
     <div class="post">
         <h3>學生資訊</h3>
+
         {% if user.is_authenticated %}
             <p>姓名: {{ user.get_full_name|default:user.username }}</p>
             <p>學號: {{ user.student_id|default:"未設定學號" }}</p>
+            <p>班級: {{ user.class_name }}</p>
+
+            {# ✅ 把登出放在學生資訊底下 #}
+            <div style="margin-top: 10px;">
+                <form action="{% url 'room:logout' %}" method="post" class="logout-form" data-no-js>
+                    {% csrf_token %}
+                    <button type="submit" class="logout-btn">🚪 登出</button>
+                </form>
+            </div>
         {% else %}
             <p>請登入以查看您的資訊。</p>
+
+            {# ✅ 未登入時顯示登入按鈕（放在學生資訊區塊底下） #}
+            <div style="margin-top: 10px;">
+                <a href="{% url 'room:login' %}" class="btn btn-primary" aria-label="登入" data-no-js>🔑 登入</a>
+            </div>
         {% endif %}
     </div>
 {% endblock %}
