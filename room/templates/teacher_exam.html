@@ -15,6 +15,7 @@
             <button class="tab-button active" onclick="switchTab('create-question')">新增題目</button>
             <button class="tab-button" onclick="switchTab('question-bank')">題目庫</button>
             <button class="tab-button" onclick="switchTab('create-exam')">創建考試</button>
+            <button class="tab-button" onclick="switchTab('edit-exam')">編輯考卷</button>
         </div>
 
         <!-- 新增題目標籤頁 -->
@@ -181,6 +182,7 @@
                                         </span>
                                         <span class="badge bg-secondary points-badge">{{ question.points }} 分</span>
                                         <span class="badge bg-info ai-limit-badge">AI 限制: {{ question.ai_limit|default:'1' }} 次</span>
+                                        <span class="badge bg-secondary">創建者: {{ question.created_by.username }}</span>
                                     </div>
                                     <p class="mt-2"><strong>{{ question.title }}</strong></p>
                                     
@@ -288,6 +290,113 @@
                     <button type="button" class="btn btn-secondary" onclick="switchTab('question-bank')">選擇題目</button>
                 </div>
             </form>
+        </div>
+
+        <!-- 編輯考卷標籤頁 -->
+        <div id="edit-exam" class="tab-content">
+            <h3>編輯考卷</h3>
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            {% if exam_papers %}
+                <table class="table table-bordered">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>考卷名稱</th>
+                            <th>總分</th>
+                            <th>題目數</th>
+                            <th>發佈時間</th>
+                            <th>開始時間</th>
+                            <th>截止時間</th>
+                            <th>時長（分鐘）</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for paper in exam_papers %}
+                            <tr>
+                                <td>{{ paper.title }}</td>
+                                <td>{{ paper.total_points }}</td>
+                                <td>{{ paper.questions.count }}</td>
+                                <td>{{ paper.publish_time|date:"Y-m-d H:i" }}</td>
+                                <td>{{ paper.start_time|date:"Y-m-d H:i" }}</td>
+                                <td>{{ paper.end_time|date:"Y-m-d H:i" }}</td>
+                                <td>{{ paper.duration_minutes }}</td>
+                                <td>
+                                    {% if paper.end_time > now %}
+                                        <a href="?edit_exam={{ paper.id }}" class="btn btn-warning btn-sm">編輯</a>
+                                    {% else %}
+                                        <span class="text-muted">已結束</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-muted">目前沒有考卷。請先創建考卷。</p>
+            {% endif %}
+
+            {% if exam_to_edit %}
+                <h4>編輯考卷：{{ exam_to_edit.title }}</h4>
+                <form method="post" action="{% url 'room:teacher_exam' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="edit_exam">
+                    <input type="hidden" name="exam_id" value="{{ exam_to_edit.id }}">
+                    <input type="hidden" name="selected_questions" id="edit_selected_questions_input" data-initial-questions='[{{ exam_to_edit.questions.all|join:"," }}]'>
+                    
+                    <div class="form-group col-md-6">
+                        <label for="exam_title" class="form-label">考試名稱：</label>
+                        <input type="text" name="exam_title" value="{{ exam_to_edit.title }}" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group col-md-6">
+                        <label for="exam_description" class="form-label">考試說明：</label>
+                        <textarea name="exam_description" rows="3" class="form-control">{{ exam_to_edit.description }}</textarea>
+                    </div>
+                    
+                    <div class="form-group col-md-4">
+                        <label for="publish_time" class="form-label">發佈時間：</label>
+                        <input type="datetime-local" name="publish_time" value="{{ exam_to_edit.publish_time|date:'Y-m-d\TH:i' }}" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group col-md-4">
+                        <label for="start_time" class="form-label">開始時間：</label>
+                        <input type="datetime-local" name="start_time" value="{{ exam_to_edit.start_time|date:'Y-m-d\TH:i' }}" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group col-md-4">
+                        <label for="end_time" class="form-label">截止時間：</label>
+                        <input type="datetime-local" name="end_time" value="{{ exam_to_edit.end_time|date:'Y-m-d\TH:i' }}" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group col-12">
+                        <label for="duration_minutes" class="form-label">考試時長（分鐘）：</label>
+                        <input type="number" name="duration_minutes" value="{{ exam_to_edit.duration_minutes }}" class="form-control" min="5" max="300" required>
+                    </div>
+
+                    <div class="form-group col-12">
+                        <label class="form-label">考試題目：</label>
+                        <div id="edit-exam-questions-summary" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: #f8f9fa; min-height: 100px;">
+                            <p style="color: #666;">當前題目（總計 {{ exam_to_edit.questions.count }} 題，{{ exam_to_edit.total_points }} 分）：</p>
+                            <ul>
+                                {% for question in exam_to_edit.questions.all %}
+                                    <li>{{ question.title }} ({{ question.points }} 分, AI 限制: {{ question.ai_limit|default:'1' }} 次)</li>
+                                {% endfor %}
+                            </ul>
+                            <p style="color: #666;">請到「題目庫」標籤頁重新選擇題目</p>
+                            <p>總計：<span id="total-questions-edit-exam">0</span> 題，<span id="total-points-edit-exam">0</span> 分，AI 問答次數限制：<span id="total-ai-limit-edit-exam">0</span> 次</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary" id="edit-exam-btn">更新考試</button>
+                        <button type="button" class="btn btn-secondary" onclick="switchTab('question-bank')">選擇題目</button>
+                    </div>
+                </form>
+            {% endif %}
         </div>
     </div>
 

@@ -19,7 +19,7 @@ function switchTab(tabId) {
         const button = document.querySelector(`button[onclick="switchTab('${tabId}')"]`);
         if (!button) throw new Error(`Button for tab ${tabId} not found`);
         button.classList.add('active');
-        if (tabId === 'question-bank') updateSelection();
+        if (tabId === 'question-bank' || tabId === 'edit-exam') updateSelection();
     } catch (error) {
         console.error('Error in switchTab:', error);
     }
@@ -73,24 +73,53 @@ function updateSelection() {
             totalPoints += parseInt(questionItem.dataset.points) || 0;
             totalAiLimit += parseInt(questionItem.dataset.aiLimit) || 1;
         });
-        ['selected-count', 'total-questions', 'total-questions-exam'].forEach(id => {
+
+        // 更新題目庫總結
+        ['selected-count', 'total-questions'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.textContent = selectedQuestions.length;
         });
-        ['total-points', 'total-points-exam'].forEach(id => {
+        ['total-points'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.textContent = totalPoints;
         });
-        ['total-ai-limit', 'total-ai-limit-exam'].forEach(id => {
+        ['total-ai-limit'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.textContent = totalAiLimit;
         });
+
+        // 更新創建考試總結
+        ['total-questions-exam', 'total-questions-edit-exam'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = selectedQuestions.length;
+        });
+        ['total-points-exam', 'total-points-edit-exam'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = totalPoints;
+        });
+        ['total-ai-limit-exam', 'total-ai-limit-edit-exam'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = totalAiLimit;
+        });
+
         const selectedList = document.getElementById('selected-list');
-        if (selectedList) selectedList.innerHTML = selectedQuestions.map(q => `<p>題目: ${q.title} (${q.type}, ${q.points} 分, AI 次數: ${q.ai_limit})</p>`).join('');
-        const selectedInput = document.getElementById('selected_questions_input');
-        if (selectedInput) selectedInput.value = selectedQuestions.map(q => q.id).join(',');
+        if (selectedList) {
+            selectedList.innerHTML = selectedQuestions.map(q => `<p>題目: ${q.title} (${q.type}, ${q.points} 分, AI 次數: ${q.ai_limit})</p>`).join('');
+        }
+
+        // 更新隱藏輸入框
+        const createInput = document.getElementById('selected_questions_input');
+        if (createInput) createInput.value = selectedQuestions.map(q => q.id).join(',');
+        const editInput = document.getElementById('edit_selected_questions_input');
+        if (editInput) editInput.value = selectedQuestions.map(q => q.id).join(',');
+
+        // 控制按鈕狀態
         const createBtn = document.getElementById('create-exam-btn');
         if (createBtn) createBtn.disabled = selectedQuestions.length === 0;
+        const editBtn = document.getElementById('edit-exam-btn');
+        if (editBtn) editBtn.disabled = selectedQuestions.length === 0;
+
+        console.log('Selected questions:', selectedQuestions);
     } catch (error) {
         console.error('Error in updateSelection:', error);
     }
@@ -212,6 +241,7 @@ function validateForm() {
         }
 
         document.getElementById('hidden_question').value = editorContent;
+        console.log('Form validated, hidden_question:', editorContent);
         return true;
     } catch (error) {
         console.error('Error in validateForm:', error);
@@ -265,6 +295,25 @@ function initializeQuill() {
 }
 
 /**
+ * 初始化編輯考卷的預選題目。
+ */
+function initializeExamSelection() {
+    try {
+        console.log('Initializing exam selection');
+        const editInput = document.getElementById('edit_selected_questions_input');
+        if (editInput && editInput.dataset.initialQuestions) {
+            selectedQuestions = JSON.parse(editInput.dataset.initialQuestions).map(id => id.toString());
+            document.querySelectorAll('.question-checkbox').forEach(cb => {
+                cb.checked = selectedQuestions.includes(cb.value);
+            });
+            updateSelection();
+        }
+    } catch (error) {
+        console.error('Error in initializeExamSelection:', error);
+    }
+}
+
+/**
  * 頁面載入時初始化。
  */
 document.addEventListener('DOMContentLoaded', () => {
@@ -272,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('DOM fully loaded');
         initializeQuill();
         updateForm();
+        initializeExamSelection();
         updateSelection();
 
         // 延遲確保 DOM 準備好
@@ -289,19 +339,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 500);
 
+        // 為所有表單添加驗證
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
-            if (form.querySelector('#hidden_question')) {
+            if (form.querySelector('#hidden_question') || form.querySelector('[name="action"]')) {
                 form.addEventListener('submit', (event) => {
                     console.log('Form submitting, validating...');
-                    if (!validateForm()) {
-                        console.log('Form validation failed');
-                        event.preventDefault();
+                    const action = form.querySelector('[name="action"]');
+                    if (!action || (action.value !== 'create_exam' && action.value !== 'edit_exam')) {
+                        if (!validateForm()) {
+                            console.log('Form validation failed');
+                            event.preventDefault();
+                        } else {
+                            console.log('Form validation passed');
+                        }
                     } else {
-                        console.log('Form validation passed');
+                        console.log('Exam form submitting:', action.value);
+                        const selectedInput = form.querySelector('[name="selected_questions"]') || form.querySelector('[name="edit_selected_questions_input"]');
+                        if (selectedInput && !selectedInput.value) {
+                            alert('請選擇至少一個題目！');
+                            event.preventDefault();
+                        }
                     }
                 });
             }
+        });
+
+        // 監聽題目選擇變化
+        document.querySelectorAll('.question-checkbox').forEach(cb => {
+            cb.addEventListener('change', updateSelection);
         });
     } catch (error) {
         console.error('Error in DOMContentLoaded:', error);

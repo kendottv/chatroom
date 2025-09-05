@@ -312,18 +312,26 @@ def select_exam(request):
 
     return render(request, 'select_exam.html', {'available_papers': available_papers})
 
+@login_required
 def teacher_exam(request):
     """
-    處理教師出題頁面，包括新增/編輯題目、題目庫管理及創建考試。
+    處理教師出題頁面，包括新增/編輯題目、題目庫管理、創建/編輯考試。
     僅限授權教師訪問。
     """
     if not request.user.is_authenticated or not request.user.is_staff:
         messages.error(request, "您無權限訪問此頁面。")
         return render(request, 'teacher_exam.html')
 
-    all_questions = ExamQuestion.objects.filter(created_by=request.user)
+    # 顯示所有題目，按 id 倒序排序
+    all_questions = ExamQuestion.objects.all().order_by('-id')
+    # 僅顯示未結束的考卷，按 id 倒序排序
+    exam_papers = ExamPaper.objects.filter(
+        created_by=request.user,
+        end_time__gt=timezone.now()
+    ).order_by('-id')
     question_types = {'sc': '單選題', 'mcq': '多選題', 'tf': '是非題', 'sa': '簡答題'}
     question_to_edit = None
+    exam_to_edit = None
 
     if request.method == 'POST':
         print("POST data:", dict(request.POST))
@@ -333,18 +341,19 @@ def teacher_exam(request):
         if 'question_text' in request.POST:
             question_id = request.POST.get('question_id')
             title = request.POST.get('title', '無題目標題').strip()
-            ai_limit = request.POST.get('ai_limit', '1').strip()  # 預設為 1
+            ai_limit = request.POST.get('ai_limit', '1').strip()
             
             raw_content = request.POST.get('question_text', '').strip()
             print(f"Raw content: '{raw_content}'")
             
-            # 檢查是否為 Quill 的空值
             if not raw_content or raw_content == '<p><br></p>' or raw_content == '':
                 messages.error(request, "題目內容不能為空。")
                 return render(request, 'teacher_exam.html', {
                     'all_questions': all_questions,
                     'question_to_edit': question_to_edit,
-                    'question_types': question_types
+                    'question_types': question_types,
+                    'exam_papers': exam_papers,
+                    'exam_to_edit': exam_to_edit,
                 })
 
             content = bleach.clean(raw_content, tags=['p'], strip=True)
@@ -365,7 +374,9 @@ def teacher_exam(request):
                     return render(request, 'teacher_exam.html', {
                         'all_questions': all_questions,
                         'question_to_edit': question_to_edit,
-                        'question_types': question_types
+                        'question_types': question_types,
+                        'exam_papers': exam_papers,
+                        'exam_to_edit': exam_to_edit,
                     })
 
             is_correct = None
@@ -383,7 +394,9 @@ def teacher_exam(request):
                         return render(request, 'teacher_exam.html', {
                             'all_questions': all_questions,
                             'question_to_edit': question_to_edit,
-                            'question_types': question_types
+                            'question_types': question_types,
+                            'exam_papers': exam_papers,
+                            'exam_to_edit': exam_to_edit,
                         })
             
             elif question_type == 'mcq':
@@ -406,7 +419,9 @@ def teacher_exam(request):
                     return render(request, 'teacher_exam.html', {
                         'all_questions': all_questions,
                         'question_to_edit': question_to_edit,
-                        'question_types': question_types
+                        'question_types': question_types,
+                        'exam_papers': exam_papers,
+                        'exam_to_edit': exam_to_edit,
                     })
             
             else:  # sa
@@ -424,7 +439,9 @@ def teacher_exam(request):
                 return render(request, 'teacher_exam.html', {
                     'all_questions': all_questions,
                     'question_to_edit': question_to_edit,
-                    'question_types': question_types
+                    'question_types': question_types,
+                    'exam_papers': exam_papers,
+                    'exam_to_edit': exam_to_edit,
                 })
 
             image = request.FILES.get('image') if 'image' in request.FILES else None
@@ -487,15 +504,23 @@ def teacher_exam(request):
             else:
                 try:
                     question_ids = [int(qid) for qid in selected_questions_str.split(',') if qid.strip()]
-                    valid_questions = ExamQuestion.objects.filter(id__in=question_ids, created_by=request.user)
+                    valid_questions = ExamQuestion.objects.filter(id__in=question_ids)
                     if not valid_questions.exists():
-                        messages.error(request, f"所選題目無效或無權限。檢查 ID: {question_ids}")
+                        messages.error(request, f"所選題目無效。檢查 ID: {question_ids}")
                     else:
                         total_points = sum(q.points for q in valid_questions)
-                        # 轉換為帶時區的 datetime
-                        publish_time = timezone.datetime.strptime(request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
-                        start_time = timezone.datetime.strptime(request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
-                        end_time = timezone.datetime.strptime(request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), '%Y-%m-%dT%H:%M').replace(tzinfo=timezone.get_current_timezone())
+                        publish_time = timezone.datetime.strptime(
+                            request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), 
+                            '%Y-%m-%dT%H:%M'
+                        ).replace(tzinfo=timezone.get_current_timezone())
+                        start_time = timezone.datetime.strptime(
+                            request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), 
+                            '%Y-%m-%dT%H:%M'
+                        ).replace(tzinfo=timezone.get_current_timezone())
+                        end_time = timezone.datetime.strptime(
+                            request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), 
+                            '%Y-%m-%dT%H:%M'
+                        ).replace(tzinfo=timezone.get_current_timezone())
                         duration_minutes = int(request.POST.get('duration_minutes', 60))
 
                         print(f"Processed times - publish: {publish_time}, start: {start_time}, end: {end_time}")
@@ -522,6 +547,54 @@ def teacher_exam(request):
                     messages.error(request, f"創建考試失敗：{str(e)}")
                     print(f"Exception in exam creation: {e}")
 
+        # 處理編輯考試
+        elif 'action' in request.POST and request.POST['action'] == 'edit_exam':
+            exam_id = request.POST.get('exam_id')
+            exam_title = request.POST.get('exam_title').strip()
+            selected_questions_str = request.POST.get('selected_questions', '').strip()
+
+            try:
+                exam_paper = get_object_or_404(ExamPaper, id=exam_id, created_by=request.user)
+                exam_paper.title = exam_title
+                exam_paper.description = request.POST.get('exam_description', '').strip()
+                exam_paper.publish_time = timezone.datetime.strptime(
+                    request.POST.get('publish_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), 
+                    '%Y-%m-%dT%H:%M'
+                ).replace(tzinfo=timezone.get_current_timezone())
+                exam_paper.start_time = timezone.datetime.strptime(
+                    request.POST.get('start_time', timezone.now().strftime('%Y-%m-%dT%H:%M')), 
+                    '%Y-%m-%dT%H:%M'
+                ).replace(tzinfo=timezone.get_current_timezone())
+                exam_paper.end_time = timezone.datetime.strptime(
+                    request.POST.get('end_time', (timezone.now() + timezone.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')), 
+                    '%Y-%m-%dT%H:%M'
+                ).replace(tzinfo=timezone.get_current_timezone())
+                exam_paper.duration_minutes = int(request.POST.get('duration_minutes', 60))
+
+                if exam_paper.start_time > exam_paper.end_time:
+                    messages.error(request, "開始時間不能晚於截止時間。")
+                else:
+                    if selected_questions_str:
+                        question_ids = [int(qid) for qid in selected_questions_str.split(',') if qid.strip()]
+                        valid_questions = ExamQuestion.objects.filter(id__in=question_ids)
+                        if not valid_questions.exists():
+                            messages.error(request, f"所選題目無效。檢查 ID: {question_ids}")
+                        else:
+                            exam_paper.total_points = sum(q.points for q in valid_questions)
+                            exam_paper.questions.set(valid_questions)
+                    else:
+                        exam_paper.questions.clear()
+                        exam_paper.total_points = 0
+
+                    exam_paper.save()
+                    messages.success(request, f"考卷 '{exam_title}' 已成功更新！")
+                    print(f"Exam paper updated: {exam_paper.id}")
+            except ValueError as e:
+                messages.error(request, f"時間或題目 ID 格式錯誤：{str(e)}")
+            except Exception as e:
+                messages.error(request, f"編輯考試失敗：{str(e)}")
+                print(f"Exception in exam editing: {e}")
+
         # 處理刪除題目
         elif 'delete_question' in request.POST:
             question_ids = request.POST.getlist('delete_questions')
@@ -546,7 +619,7 @@ def teacher_exam(request):
     edit_id = request.GET.get('edit')
     if edit_id:
         question_to_edit = get_object_or_404(ExamQuestion, id=edit_id, created_by=request.user)
-        print(f"Editing question {edit_id}, is_correct: {question_to_edit.is_correct}, correct_option_indices: {question_to_edit.correct_option_indices}, type of is_correct: {type(question_to_edit.is_correct)}, type of correct_option_indices: {type(question_to_edit.correct_option_indices)}")
+        print(f"Editing question {edit_id}, is_correct: {question_to_edit.is_correct}, correct_option_indices: {question_to_edit.correct_option_indices}")
         if question_to_edit.options is None:
             question_to_edit.options = ['', '', '', '']
         while len(question_to_edit.options) < 4:
@@ -563,10 +636,18 @@ def teacher_exam(request):
         else:
             question_to_edit.correct_answer_list = []
 
+    # 處理編輯考卷
+    edit_exam_id = request.GET.get('edit_exam')
+    if edit_exam_id:
+        exam_to_edit = get_object_or_404(ExamPaper, id=edit_exam_id, created_by=request.user)
+        print(f"Editing exam {edit_exam_id}, title: {exam_to_edit.title}, questions: {list(exam_to_edit.questions.values_list('id', flat=True))}")
+
     return render(request, 'teacher_exam.html', {
         'all_questions': all_questions,
         'question_to_edit': question_to_edit,
-        'question_types': question_types
+        'question_types': question_types,
+        'exam_papers': exam_papers,
+        'exam_to_edit': exam_to_edit,
     })
 
 @login_required
