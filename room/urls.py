@@ -6,6 +6,7 @@ app_name = 'room'  # 定義命名空間
 urlpatterns = [
     path('', views.home, name='home'),  # 首頁
     path('exam/', views.exam, name='exam'),  # 考試頁（做題）
+    path('exam/select/', views.select_exam, name='select_exam'),  # 選擇考卷頁面
     path('teacher_exam/', views.teacher_exam, name='teacher_exam'),  # 出題頁
     path('readme/', views.readme, name='readme'),  # ReadMe 頁
     path('history/', views.history, name='history'),  # 歷史頁

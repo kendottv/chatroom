@@ -11,10 +11,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
     <!-- 夜間模式 CSS -->
-    <link rel="stylesheet" href="{% static 'css/night_mode.css' %}">
+    <link rel="stylesheet" href="{% static 'room/css/night_mode.css' %}">
 
     <!-- 基礎 CSS -->
-    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'room/css/base.css' %}">
 
     <!-- 額外的頁面 CSS -->
     {% block extra_css %}{% endblock %}
@@ -27,7 +27,7 @@
         <nav class="sidebar" id="sidebar" role="navigation" aria-label="主選單">
             <h2>計算機概論</h2>
             <a href="{% url 'room:home' %}" aria-label="首頁">🏠 首頁</a>
-            <a href="{% url 'room:exam' %}" aria-label="考試">📝 考試</a>
+            <a href="{% url 'room:select_exam' %}" aria-label="考試">📝 考試</a>
             <a href="{% url 'room:history' %}" aria-label="歷史記錄">⏳ 歷史</a>
             <a href="{% url 'room:readme' %}" aria-label="說明文件">📖 ReadMe</a>
             <a href="{% url 'room:profile' %}" aria-label="個人資料">👤 個人資料</a>
@@ -110,15 +110,13 @@
                     {% endblock %}
                 </main>
 
-                <footer class="footer" role="contentinfo">
-                    <p>期末專案 © 2025 </p>
-                </footer>
+                
             </div>
         </div>
     </div>
 
     <!-- 基礎 JavaScript -->
-    <script src="{% static 'js/base.js' %}"></script>
+    <script src="{% static 'room/js/base.js' %}"></script>
     
     <!-- 額外的頁面 JavaScript -->
     {% block extra_js %}{% endblock %}

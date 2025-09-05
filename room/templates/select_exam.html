@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}選擇考卷{% endblock %}
+
+{% block content %}
+  <h3>選擇考卷或作業</h3>
+
+  {% if messages %}
+    <div class="messages-container" role="alert" aria-live="polite">
+      {% for message in messages %}
+        <div class="message {{ message.tags }}">
+          <i class="fas fa-info-circle" aria-hidden="true"></i>
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if available_papers %}
+    <div class="post">
+      <p>請選擇您要進行的考卷或作業：</p>
+
+      {# 關鍵：加上 data-no-js，讓 base.js 不要攔截這張表單 #}
+      <form method="post"
+            action="{% url 'room:select_exam' %}"
+            id="select-exam-form"
+            data-no-js>
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="exam_paper">考卷/作業</label>
+          <select name="exam_paper" id="exam_paper" class="form-control" required>
+            <option value="" disabled selected>請選擇考卷</option>
+            {% for paper in available_papers %}
+              <option value="{{ paper.id }}">
+                {{ paper.title }} (總分: {{ paper.total_points }} | 題數: {{ paper.questions.count }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        {# 按鈕也加 data-no-js，避免 click 攔截 #}
+        <button type="submit" class="btn btn-primary" data-no-js>開始考試</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="post">
+      <p>目前沒有可用的考卷或作業，請聯繫管理員。</p>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+  <style>
+    .form-control {
+      width: 100%;
+      max-width: 500px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    .btn-primary {
+      background: #1e355b;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-primary:hover { background: #2e4d7a; }
+  </style>
+{% endblock %}

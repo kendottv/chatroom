@@ -34,18 +34,14 @@
             <h3 class="ai-title">🤖 AI 問答助手</h3>
             <div class="ai-description">
                 如果您在考試過程中有疑問，可以向 AI 助手提問獲得幫助
-                {% if exam_papers %}
-                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">{{ exam_papers.0.ai_total_limit }} 次</span></p>
-                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="{{ exam_papers.0.ai_total_limit }}">{{ exam_papers.0.ai_total_limit }}</span></p>
-                    <input type="hidden" id="current-paper-id" value="{{ exam_papers.0.id }}">
-                {% else %}
-                    <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">無考卷，無限制提問</span></p>
-                    <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="0">無限制</span></p>
-                    <input type="hidden" id="current-paper-id" value="">
-                {% endif %}
+                <p class="ai-limit">AI 問答次數限制：<span id="ai-limit-display">{{ ai_total_limit }} 次</span></p>
+                <p class="ai-remaining">剩餘次數：<span id="ai-remaining-display" data-limit="{{ ai_remaining }}">{{ ai_remaining }} 次</span></p>
+                <input type="hidden" id="current-paper-id" value="{{ exam_papers.0.id|default:'' }}">
             </div>
             <textarea id="ai_question" class="form-control mb-2 ai-input" placeholder="請輸入您的問題，例如：&#10;• 這道題目的關鍵概念是什麼？&#10;• 我應該如何理解這個問題？&#10;• 能否解釋一下相關知識點？"></textarea>
-            <button onclick="askAI()" class="btn btn-primary w-100 ai-btn" {% if not exam_papers %} {% else %} {% endif %}>💬 向 AI 提問</button>
+            <button onclick="askAI()" class="btn btn-primary w-100 ai-btn" {% if ai_remaining <= 0 %}disabled{% endif %}>
+                {% if ai_remaining <= 0 %}已達上限{% else %}💬 向 AI 提問{% endif %}
+            </button>
             <div id="ai-response" class="ai-response mt-3 p-2 border rounded">
                 AI 回應將顯示在這裡...
                 <br><br>
@@ -103,7 +99,7 @@
                                 <div class="question-container" data-question-id="{{ question.id }}" {% if forloop.first %}data-active="true"{% endif %}>
                                     <div class="question-header">
                                         <span class="question-number">📌 第 {{ forloop.counter }} 題</span>
-                                        <span class="question-points">{{ question.points }} 分</span>
+                                        <span autistic="question-points">{{ question.points }} 分</span>
                                         <span class="question-ai-limit">AI 限制: {% if question.ai_limit %}{{ question.ai_limit }}{% else %}無{% endif %} 次</span>
                                     </div>
                                     
@@ -183,8 +179,6 @@
         </div>
     </div>
 
-    <!-- 腳注 -->
-    <div class="footer text-center py-3 bg-light mt-4">期末專案 © 2025</div>
 
     <!-- 引入 JavaScript -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

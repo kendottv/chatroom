@@ -1,28 +1,25 @@
-// 當前題目索引（每個考卷獨立）
 const currentIndices = {};
 
 document.addEventListener('DOMContentLoaded', () => {
-    try {
-        const examRecordsElement = document.getElementById('exam-records');
-        if (examRecordsElement) {
-            const examRecords = JSON.parse(examRecordsElement.textContent);
-        }
-    } catch (error) {
-        console.warn('Failed to parse exam records:', error);
-    }
-
-    document.querySelectorAll('.exam-paper').forEach(paper => {
+    const paper = document.querySelector('.exam-paper');
+    if (paper) {
         const paperId = paper.getAttribute('data-paper-id');
         if (paperId) {
             currentIndices[paperId] = 0;
-            switchQuestion(paperId, 0); // 初始化顯示第一題
+            switchQuestion(paperId, 0);
             updateNavigationButtons(paperId);
             setupEventListeners(paperId);
         }
-    });
+    }
+
+    const aiRemaining = parseInt(document.getElementById('ai-remaining-display')?.dataset.limit) || 0;
+    const aiBtn = document.querySelector('.ai-btn');
+    if (aiRemaining <= 0) {
+        aiBtn.disabled = true;
+        aiBtn.textContent = '已達上限';
+    }
 });
 
-// 設置事件監聽器
 function setupEventListeners(paperId) {
     const prevBtn = document.getElementById(`prev-question-${paperId}`);
     const nextBtn = document.getElementById(`next-question-${paperId}`);
@@ -34,7 +31,6 @@ function setupEventListeners(paperId) {
         nextBtn.addEventListener('click', () => handleNextQuestion(paperId));
     }
 
-    // 表單提交事件
     const form = document.getElementById(`exam-form-${paperId}`);
     if (form) {
         form.addEventListener('submit', (event) => {
@@ -55,7 +51,6 @@ function setupEventListeners(paperId) {
     }
 }
 
-// 切換題目
 function switchQuestion(paperId, index) {
     const questions = document.querySelectorAll(`.exam-paper[data-paper-id="${paperId}"] .question-container`);
     if (!questions.length) {
@@ -74,11 +69,9 @@ function switchQuestion(paperId, index) {
 
     currentIndices[paperId] = index;
     updateNavigationButtons(paperId);
-    console.log(`Switched to question index: ${index} for paper ${paperId}`);
     return true;
 }
 
-// 更新導航按鈕狀態
 function updateNavigationButtons(paperId) {
     const totalQuestions = document.querySelectorAll(`.exam-paper[data-paper-id="${paperId}"] .question-container`).length;
     const prevBtn = document.getElementById(`prev-question-${paperId}`);
@@ -97,30 +90,22 @@ function updateNavigationButtons(paperId) {
     nextBtn.textContent = currentIndex === totalQuestions - 1 ? '提交並結束' : '下一題';
 }
 
-// 獲取答案
 function getAnswer(container) {
     const questionId = container.getAttribute('data-question-id');
     let answer = null;
 
-    // 檢查多選題
     const checkboxes = container.querySelectorAll(`input[name="answer-${questionId}[]"]:checked`);
     if (checkboxes.length > 0) {
         answer = Array.from(checkboxes).map(cb => cb.value);
-    }
-    // 檢查單選題
-    else {
+    } else {
         const radio = container.querySelector(`input[name="answer-${questionId}"]:checked`);
         if (radio) {
             answer = radio.value;
-        }
-        // 檢查文本域
-        else {
+        } else {
             const textarea = container.querySelector(`textarea[name="answer-${questionId}"]`);
             if (textarea) {
                 answer = textarea.value.trim() || '';
-            }
-            // 檢查文本輸入框
-            else {
+            } else {
                 const textInput = container.querySelector(`input[name="answer-${questionId}"]`);
                 if (textInput) {
                     answer = textInput.value.trim() || '';
@@ -132,7 +117,6 @@ function getAnswer(container) {
     return answer;
 }
 
-// 提交單題答案
 async function submitSingleAnswer(paperId, questionId) {
     const currentQuestion = document.querySelector(`.exam-paper[data-paper-id="${paperId}"] .question-container[style*="display: block"]`);
     if (!currentQuestion) {
@@ -144,13 +128,14 @@ async function submitSingleAnswer(paperId, questionId) {
     const csrfToken = getCookie('csrftoken');
 
     try {
-        const response = await fetch('/submit_single_answer/', {
+        const response = await fetch(`/exam/${paperId}/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken,
             },
             body: JSON.stringify({
+                action: 'submit_answer',
                 paper_id: paperId,
                 question_id: questionId || currentQuestion.getAttribute('data-question-id'),
                 answer: answer
@@ -173,7 +158,6 @@ async function submitSingleAnswer(paperId, questionId) {
     }
 }
 
-// 處理下一題
 async function handleNextQuestion(paperId) {
     const questions = document.querySelectorAll(`.exam-paper[data-paper-id="${paperId}"] .question-container`);
     if (!questions.length) {
@@ -192,24 +176,20 @@ async function handleNextQuestion(paperId) {
     const currentQuestion = questions[currentIndex];
     const questionId = currentQuestion.getAttribute('data-question-id');
 
-    // 自動提交當前答案
     const success = await submitSingleAnswer(paperId, questionId);
     if (!success) return;
 
-    // 如果是最後一題，直接提交考卷
     if (currentIndex === questions.length - 1) {
         const form = document.getElementById(`exam-form-${paperId}`);
         if (form) {
             form.submit();
         }
     } else {
-        // 切換到下一題
         const nextIndex = currentIndex + 1;
         switchQuestion(paperId, nextIndex);
     }
 }
 
-// 處理上一題
 function handlePrevQuestion(paperId) {
     const currentIndex = currentIndices[paperId] || 0;
     if (currentIndex > 0) {
@@ -217,7 +197,6 @@ function handlePrevQuestion(paperId) {
     }
 }
 
-// 獲取 CSRF Token
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -233,32 +212,63 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// AI 問答
-function askAI() {
-    const question = document.getElementById('ai_question').value.trim();
-    if (!question) {
-      alert('請輸入問題');
-      return;
-    }
-  
-    const responseDiv = document.getElementById('ai-response');
-    responseDiv.innerHTML = '🤖 正在處理您的問題，請稍候...';
-  
-    fetch('/webhooks/ai/', {
-      method: 'POST',
-      credentials: 'include', // ★ 同網域帶 cookie，後端才能用 request.session
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
-      },
-      body: JSON.stringify({ prompt: question }) // 同網域不必傳 session_key
-    })
-    .then(r => r.json())
-    .then(data => {
-      responseDiv.innerHTML = data.response || '無法獲得回應，請稍後再試。';
-    })
-    .catch(err => {
-      console.error('Error:', err);
-      responseDiv.innerHTML = '❌ 發生錯誤，請稍後再試。';
-    });
+async function callWebhook(prompt, paperId) {
+  const payload = paperId ? { prompt, paper_id: paperId } : { prompt };
+  const res = await fetch('/webhooks/ai/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.response || data.error || `HTTP ${res.status}`;
+    const err = new Error(msg); err.status = res.status; err.payload = data;
+    throw err;
   }
+  return data;
+}
+
+async function askAI() {
+  const qEl  = document.getElementById('ai_question');
+  const resp = document.getElementById('ai-response');
+  const left = document.getElementById('ai-remaining-display');
+  const btn  = document.querySelector('.ai-btn');
+  const paperId = document.getElementById('current-paper-id')?.value || '';
+
+  const question = (qEl?.value || '').trim();
+  if (!question) { alert('請輸入問題'); return; }
+
+  resp.innerHTML = '🤖 正在處理您的問題，請稍候...';
+  if (btn) { btn.disabled = true; btn.dataset.originalText = btn.textContent; btn.textContent = '處理中…'; }
+
+  try {
+    const data = await callWebhook(question, paperId || null);
+    resp.innerHTML = data.response || '無法獲得回應，請稍後再試。';
+
+    if (typeof data.remaining === 'number' && left) {
+      left.textContent = `${data.remaining} 次`;
+      if (btn) {
+        if (data.remaining <= 0) { btn.disabled = true; btn.textContent = '已達上限'; }
+        else { btn.disabled = false; btn.textContent = btn.dataset.originalText || '💬 向 AI 提問'; }
+      }
+    } else if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || '💬 向 AI 提問';
+    }
+  } catch (err) {
+    console.error(err);
+    resp.innerHTML = err.message || '❌ 發生錯誤，請稍後再試。';
+
+    const rem = err?.payload?.remaining;
+    if (typeof rem === 'number' && left) {
+      left.textContent = `${rem} 次`;
+      if (btn) {
+        if (rem <= 0) { btn.disabled = true; btn.textContent = '已達上限'; }
+        else { btn.disabled = false; btn.textContent = btn.dataset.originalText || '💬 向 AI 提問'; }
+      }
+    } else if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || '💬 向 AI 提問';
+    }
+  }
+}

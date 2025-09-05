@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-ac4s+*9+e(fdsnrdo%xq)_0cy7fql+xesq=54vqw!bg*km2swm
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -119,7 +119,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']  # 定義靜態文件目錄
-
+STATIC_ROOT = BASE_DIR / "staticfiles"
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

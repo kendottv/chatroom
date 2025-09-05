@@ -32,6 +32,48 @@ def exam(request):
     current_time = timezone.now()
     
     if request.method == 'POST':
+        # 處理 AI 提問
+        if request.POST.get('action') == 'ai_question':
+            try:
+                prompt = request.POST.get('prompt')
+                paper_id = request.POST.get('paper_id')
+                
+                if not prompt:
+                    return JsonResponse({'error': '請提供問題'}, status=400)
+                
+                if paper_id:
+                    try:
+                        exam_paper = ExamPaper.objects.get(id=paper_id)
+                        session_key = f'ai_remaining_{paper_id}'
+                        remaining = request.session.get(session_key, sum(q.ai_limit for q in exam_paper.questions.all()))
+                        
+                        if remaining <= 0:
+                            return JsonResponse({'response': '已達 AI 提問上限！', 'remaining': 0}, status=403)
+                        
+                        # 這裡替換成您的實際 AI 呼叫邏輯，例如使用 Grok 或 OpenAI API
+                        response = "這是 AI 的模擬回應..."  # 請替換
+                        
+                        remaining -= 1
+                        request.session[session_key] = remaining
+                        
+                        InteractionLog.objects.create(
+                            user=request.user,
+                            question=prompt,
+                            response=response,
+                            exam_paper=exam_paper,
+                            score=0
+                        )
+                        
+                        return JsonResponse({'response': response, 'remaining': remaining})
+                    except ExamPaper.DoesNotExist:
+                        return JsonResponse({'error': '考卷不存在'}, status=404)
+                else:
+                    return JsonResponse({'response': '無進行中考試，無法提問', 'remaining': 0}, status=403)
+            
+            except Exception as e:
+                return JsonResponse({'error': f'發生錯誤：{str(e)}'}, status=500)
+        
+        # 處理結束考試
         if 'end_exam' in request.POST and request.user.is_staff:
             paper_id = request.POST.get('paper_id')
             if paper_id:
@@ -46,6 +88,7 @@ def exam(request):
             else:
                 messages.error(request, "未提供考卷 ID。")
         
+        # 處理考試提交
         elif 'paper_id' in request.POST:
             paper_id = request.POST.get('paper_id')
             if paper_id:
@@ -56,12 +99,11 @@ def exam(request):
                         return redirect('room:exam')
 
                     student = request.user
-                    # 從 request.POST 獲取 answers 字段，假設前端傳送 JSON 字符串
                     answers_str = request.POST.get('answers', '{}')
-                    print(f"Received answers string: {answers_str}")  # 調試：檢查傳入的 answers
+                    print(f"Received answers string: {answers_str}")  # 調試
                     try:
                         answers = json.loads(answers_str) if answers_str else {}
-                        print(f"Parsed answers: {answers}")  # 調試：檢查解析後的 answers
+                        print(f"Parsed answers: {answers}")  # 調試
                     except json.JSONDecodeError as e:
                         answers = {}
                         print(f"JSON decode error: {e}")
@@ -79,11 +121,10 @@ def exam(request):
                         student_answer = answers.get(question_id)
                         is_correct = False
 
-                        # 處理 student_answer，允許空字符串但記錄
                         if student_answer is None or (isinstance(student_answer, list) and not any(student_answer)):
                             student_answer = None
                         elif isinstance(student_answer, str) and not student_answer.strip():
-                            student_answer = ''  # 保留空字符串以區分未作答
+                            student_answer = ''  
 
                         print(f"Processing question {question_id}: student_answer = {student_answer}")  # 調試
 
@@ -114,7 +155,6 @@ def exam(request):
                         else:
                             score = 0
 
-                        # 確保保存 student_answer，即使為空
                         ExamAnswer.objects.update_or_create(
                             exam_record=exam_record,
                             exam_question=question,
@@ -156,51 +196,47 @@ def exam(request):
                     print(f"Exception in exam submission: {e}")
 
     # GET 請求的處理
-    # 獲取所有考卷並檢查完成狀態
     all_papers = ExamPaper.objects.all().prefetch_related('questions')
     exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
     exam_records_dict = {record['exam_paper_id']: {'is_completed': record['is_completed']} for record in exam_records}
 
-    # 過濾只顯示未結束且未完成的考試
     available_papers = [
         paper for paper in all_papers
         if paper.publish_time <= current_time and paper.end_time > current_time and
         not exam_records_dict.get(paper.id, {}).get('is_completed', False)
     ]
     
-    # 計算每個考卷的 AI 問答次數限制
+    # 計算 AI 提問次數並初始化 session
     for paper in available_papers:
         paper.ai_total_limit = sum(q.ai_limit for q in paper.questions.all())
+        session_key = f'ai_remaining_{paper.id}'
+        if session_key not in request.session:
+            request.session[session_key] = paper.ai_total_limit
+        paper.ai_remaining = request.session[session_key]
 
-    # 獲取學生已保存的答案並為每個考卷和問題準備數據
     student_answers = {}
     
     if available_papers:
-        # 獲取所有可用考卷的已保存答案
         paper_ids = [paper.id for paper in available_papers]
         saved_answers = ExamAnswer.objects.filter(
             exam_record__student=request.user,
             exam_record__exam_paper_id__in=paper_ids,
-            exam_record__is_completed=False  # 只獲取未完成考試的答案
+            exam_record__is_completed=False
         ).select_related('exam_record', 'exam_question')
         
-        # 組織答案數據為嵌套字典
         for answer in saved_answers:
             paper_id = answer.exam_record.exam_paper_id
             question_id = answer.exam_question.id
-            
             if paper_id not in student_answers:
                 student_answers[paper_id] = {}
             student_answers[paper_id][question_id] = answer.student_answer or ""
     
-    # 為每個考卷添加問題和答案信息
     for paper in available_papers:
         paper.questions_with_answers = []
         paper_answers = student_answers.get(paper.id, {})
         
         for question in paper.questions.all():
             question.student_answer = paper_answers.get(question.id, "")
-            # 處理多選題的答案格式
             if question.question_type == 'mcq' and question.student_answer:
                 if isinstance(question.student_answer, str):
                     question.student_answer_list = question.student_answer.split(',')
@@ -213,14 +249,68 @@ def exam(request):
     
     if not available_papers:
         messages.info(request, "目前沒有進行中的考試。請聯繫管理員或檢查時間設置。")
-
-    context = {
-        'exam_papers': available_papers,
-        'exam_records': exam_records_dict,
-        'user': request.user,
-    }
+        context = {
+            'exam_papers': [],
+            'exam_records': exam_records_dict,
+            'user': request.user,
+            'ai_total_limit': 0,
+            'ai_remaining': 0,
+        }
+    else:
+        context = {
+            'exam_papers': available_papers,
+            'exam_records': exam_records_dict,
+            'user': request.user,
+            'ai_total_limit': available_papers[0].ai_total_limit,
+            'ai_remaining': available_papers[0].ai_remaining,
+        }
     
     return render(request, 'exam.html', context)
+
+
+@login_required
+def select_exam(request):
+    current_time = timezone.now()
+
+    all_papers = ExamPaper.objects.all().prefetch_related('questions')
+    exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
+    exam_records_dict = {r['exam_paper_id']: {'is_completed': r['is_completed']} for r in exam_records}
+
+    available_papers = [
+        p for p in all_papers
+        if p.publish_time <= current_time < p.end_time
+        and not exam_records_dict.get(p.id, {}).get('is_completed', False)
+    ]
+
+    if request.method == 'POST':
+        exam_paper_id = request.POST.get('exam_paper')
+        if not exam_paper_id:
+            messages.error(request, "請選擇一張考卷。")
+            return redirect('room:select_exam')
+
+        try:
+            exam_paper = ExamPaper.objects.get(id=exam_paper_id)
+        except ExamPaper.DoesNotExist:
+            messages.error(request, "選擇的考卷不存在。")
+            return redirect('room:select_exam')
+
+        # 時間與已完成檢查
+        if not (exam_paper.publish_time <= current_time < exam_paper.end_time):
+            messages.error(request, "此考卷目前不可作答（尚未開始或已結束）。")
+            return redirect('room:select_exam')
+
+        already_done = ExamRecord.objects.filter(
+            student=request.user, exam_paper=exam_paper, is_completed=True
+        ).exists()
+        if already_done:
+            messages.info(request, "此考卷您已經完成。")
+            return redirect('room:select_exam')
+
+        # OK：存入 session 並前往作答
+        request.session['selected_exam_paper_id'] = str(exam_paper.id)
+        return redirect('room:exam')
+
+    return render(request, 'select_exam.html', {'available_papers': available_papers})
 
 def teacher_exam(request):
     """
@@ -485,7 +575,7 @@ def student_exam_history(request):
     顯示每個學生的每個考試的每個題目答題紀錄。
     僅限已認證且具有管理權限的用戶訪問。
     """
-    if not request.user.is_authenticated or not request.user.is_staff:
+    if not request.user.is_staff:
         messages.error(request, "您無權限訪問此頁面。")
         return redirect('room:teacher_exam')
 
@@ -494,7 +584,6 @@ def student_exam_history(request):
     detailed_records = []
 
     for history in histories:
-        # 根據 student 和 exam_paper 查詢對應的 ExamRecord
         exam_record = ExamRecord.objects.filter(
             student=history.student,
             exam_paper=history.exam_paper
@@ -511,8 +600,8 @@ def student_exam_history(request):
                     'student_answer': answer.student_answer,
                     'score': answer.score,
                     'is_correct': answer.is_correct,
-                    'question_type': question.question_type,
-                    'question_id': answer.exam_question.id,
+                    'question_type': question.get_question_type_display(),
+                    'question_id': question.id,
                     'points': question.points,
                 })
             detailed_records.append({
@@ -524,50 +613,57 @@ def student_exam_history(request):
             })
 
     if request.method == 'POST' and 'update_scores' in request.POST:
-        student_exam_key = request.POST['update_scores'].split('_')
-        student_id = student_exam_key[0]
-        exam_title = '_'.join(student_exam_key[1:])
-        history = StudentExamHistory.objects.filter(student__student_id=student_id, exam_paper__title=exam_title).first()
+        try:
+            student_exam_key = request.POST['update_scores'].split('_')
+            student_id = student_exam_key[0]
+            exam_title = '_'.join(student_exam_key[1:])
+            history = StudentExamHistory.objects.filter(
+                student__student_id=student_id,
+                exam_paper__title=exam_title
+            ).first()
 
-        if not history:
-            messages.error(request, "找不到對應的考試歷史紀錄。")
-            return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
+            if not history:
+                messages.error(request, "找不到對應的考試歷史紀錄。")
+                return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
-        # 查詢對應的 ExamRecord
-        exam_record = ExamRecord.objects.filter(
-            student=history.student,
-            exam_paper=history.exam_paper
-        ).first()
+            exam_record = ExamRecord.objects.filter(
+                student=history.student,
+                exam_paper=history.exam_paper
+            ).first()
 
-        if not exam_record:
-            messages.error(request, "找不到對應的考試紀錄。")
-            return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
+            if not exam_record:
+                messages.error(request, "找不到對應的考試紀錄。")
+                return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
-        total_score = 0
-        for answer in exam_record.answer_details.all():
-            question_title = answer.exam_question.title
-            new_score = request.POST.get(f'score_{question_title}')
-            if new_score is not None:
-                try:
-                    new_score = int(new_score)
-                    max_score = answer.exam_question.points
-                    if 0 <= new_score <= max_score:
-                        answer.score = new_score
-                        answer.is_correct = (new_score == max_score)
-                        answer.save()
-                        total_score += new_score
-                    else:
-                        messages.warning(request, f"題目 '{question_title}' 的調分 {new_score} 超出範圍 (0-{max_score})，未更新。")
-                except ValueError:
-                    messages.warning(request, f"題目 '{question_title}' 的調分無效，需為數字。")
+            total_score = 0
+            for answer in exam_record.answer_details.all():
+                new_score = request.POST.get(f'score_{answer.exam_question.id}')
+                if new_score is not None:
+                    try:
+                        new_score = int(new_score)
+                        max_score = answer.exam_question.points
+                        if 0 <= new_score <= max_score:
+                            answer.score = new_score
+                            answer.is_correct = (new_score == max_score)  # 滿分視為正確
+                            answer.save()
+                            total_score += new_score
+                        else:
+                            messages.warning(request, f"題目 ID {answer.exam_question.id} 的調分 {new_score} 超出範圍 (0-{max_score})，未更新。")
+                    except ValueError:
+                        messages.warning(request, f"題目 ID {answer.exam_question.id} 的調分無效，需為數字。")
 
-        # 更新總分
-        history.total_score = total_score
-        history.save()
-        exam_record.score = total_score
-        exam_record.save()
-        messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
-        return redirect('room:student_exam_history')
+            # 更新總分
+            history.total_score = total_score
+            history.save()
+            exam_record.score = total_score
+            exam_record.save()
+            messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
+            return redirect('room:student_exam_history')
+
+        except (ValueError, CustomUser.DoesNotExist, ExamPaper.DoesNotExist):
+            messages.error(request, "更新分數失敗，無效的學生或考卷。")
+        except Exception as e:
+            messages.error(request, f"更新分數時發生錯誤：{str(e)}")
 
     return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
@@ -835,13 +931,54 @@ def logout(request):
     auth_logout(request)  # 執行登出
     return redirect('room:home')
 
+def _session_touch(session):
+    """同步函式：觸碰 session 並寫入 last_seen。"""
+    session["last_seen"] = timezone.now().isoformat()
+    session.save()
+
+def _sum_ai_limit_sync(paper_id: int) -> int:
+    """同步函式：計算一張考卷的 AI 總額度（各題 ai_limit 加總）。"""
+    paper = ExamPaper.objects.get(id=paper_id)
+    return sum(q.ai_limit for q in paper.questions.all())
+
+def _consume_once_sync(session, paper_id: int):
+    """
+    同步函式：從 session 扣 1 次。
+    - 首次使用先初始化 total。
+    - 回傳 (ok:boolean, remaining:int)。
+    """
+    key = f"ai_remaining_{paper_id}"
+    remaining = session.get(key)
+    if remaining is None:
+        total = _sum_ai_limit_sync(paper_id)
+        session[key] = total
+        remaining = total
+    if remaining <= 0:
+        return False, 0
+    session[key] = remaining - 1
+    session.modified = True
+    return True, remaining - 1
+
+def _rollback_once_sync(session, paper_id: int):
+    """同步函式：AI 失敗時把剛扣的 1 次加回去。"""
+    key = f"ai_remaining_{paper_id}"
+    if key in session:
+        session[key] = int(session[key]) + 1
+        session.modified = True
+
 @csrf_exempt
 @require_POST
 async def ai_webhook(request):
     """
     POST /webhooks/ai/
-    JSON: { "prompt": "...", "session_key": "可選：外部來源自行提供" }
-    回傳: { "response": "..." }
+    JSON:
+      - 必填:  prompt: str
+      - 可選:  paper_id: int（考場情境就帶，會執行扣次並回 remaining）
+      - 可選:  session_key: str（外部來源自帶 session）
+    回傳:
+      - 一般: {"response": "..."}
+      - 考場: {"response": "...", "remaining": <int>}
+      - 用盡: {"response": "已達 AI 提問上限！", "remaining": 0}  (HTTP 429)
     """
     # 1) 解析 JSON
     try:
@@ -850,45 +987,63 @@ async def ai_webhook(request):
         return HttpResponseBadRequest("Invalid JSON")
 
     prompt = (payload.get("prompt") or "").strip()
-    incoming_session_key = payload.get("session_key")  # 外部服務可提供
+    incoming_session_key = payload.get("session_key")
+    paper_id = payload.get("paper_id")  # 可為 None
     if not prompt:
         return JsonResponse({"error": "請提供 prompt"}, status=400)
 
-    # 2) 取得/建立 session_key（同步存取包進 thread）
+    # 2) 取得/建立 session_key（包同步操作進 thread）
     async def ensure_session_and_touch():
         if incoming_session_key:
-            return incoming_session_key  # 外部來源直接用它
-
+            return incoming_session_key
         if not request.session.session_key:
             await sync_to_async(request.session.save)()
-
-        def _touch():
-            request.session["last_seen"] = timezone.now().isoformat()
-            request.session.save()
-        await sync_to_async(_touch)()
-
+        await sync_to_async(_session_touch)(request.session)
         return request.session.session_key
 
     session_key = await ensure_session_and_touch()
 
-    # 3) 呼叫 Gemini（你的 wrapper 內有 Redis 兩小時上下文與 Web Access 設定）
-    wrapper = GeminiAPIWrapper(session_key=session_key)
-    answer_text = await wrapper.async_get_response(prompt)
+    # 3) 若有 paper_id → 先檢查考卷存在並先扣 1 次
+    remaining = None
+    did_decrement = False
+    if paper_id is not None:
+        try:
+            # 確認考卷存在
+            await sync_to_async(ExamPaper.objects.get)(id=paper_id)
+        except ExamPaper.DoesNotExist:
+            return JsonResponse({"error": "考卷不存在"}, status=404)
 
-    # 4) 取得使用者 ID：不要碰 request.user（會觸發 ORM）
+        ok, remaining = await sync_to_async(_consume_once_sync)(request.session, int(paper_id))
+        if not ok:
+            return JsonResponse({"response": "已達 AI 提問上限！", "remaining": 0}, status=429)
+        did_decrement = True
+
+    # 4) 呼叫 Gemini（失敗就回補額度）
+    try:
+        wrapper = GeminiAPIWrapper(session_key=session_key)
+        answer_text = await wrapper.async_get_response(prompt)
+    except Exception as ai_err:
+        if did_decrement and paper_id is not None:
+            await sync_to_async(_rollback_once_sync)(request.session, int(paper_id))
+        return JsonResponse({"error": f"AI 服務錯誤：{ai_err}"}, status=500)
+
+    # 5) 取得 user_id（避免在 async context 直接觸 ORM 或 request.user）
     if incoming_session_key:
-        user_id = None  # 外部來源一般不記 user
+        user_id = None
     else:
-        # ★ 這裡用同步 lambda 包起來，sync_to_async 只接受同步函式
         user_id = await sync_to_async(lambda: request.session.get("_auth_user_id"))()
         user_id = int(user_id) if user_id else None
 
-    # 5) 記錄互動（ORM 放入 thread）
+    # 6) 記錄互動
     await sync_to_async(InteractionLog.objects.create)(
         user_id=user_id,
         question=prompt,
         response=answer_text,
+        exam_paper_id=paper_id if paper_id is not None else None,
     )
 
-    # 6) 回傳 JSON
-    return JsonResponse({"response": answer_text}, status=200)
+    # 7) 回傳 JSON（
+    resp = {"response": answer_text}
+    if remaining is not None:
+        resp["remaining"] = remaining
+    return JsonResponse(resp, status=200)

@@ -1,0 +1,456 @@
+* {
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    background: #edf1f5;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s ease;
+}
+
+.container {
+    display: flex;
+    flex: 1;
+    background: inherit;
+    justify-content: center; /* 水平置中 */
+    align-items: stretch; /* 確保子元素高度一致 */
+    width: 100%; /* 預設佔滿寬度 */
+    max-width: 90vw; /* 使用視口寬度，動態適應螢幕 */
+    max-width: min(90vw, 1600px); /* 限制最大寬度為 1600px */
+    margin: 0 auto; /* 水平置中 */
+    padding: 0 15px; /* 兩側留白，防止內容貼邊 */
+}
+
+/* 側邊欄 - 預設完全隱藏，通過漢堡選單切換 */
+.sidebar {
+    width: 280px;
+    background-color: #1e355b;
+    color: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    transition: transform 0.3s ease-in-out, visibility 0.3s ease, opacity 0.3s ease;
+    z-index: 1000;
+    transform: translateX(-100%); /* 預設隱藏 */
+    visibility: hidden; /* 確保完全隱藏 */
+    opacity: 0; /* 額外隱藏保險 */
+}
+
+.sidebar.active {
+    transform: translateX(0); /* 顯示時滑入 */
+    visibility: visible; /* 顯示時可見 */
+    opacity: 1; /* 顯示時不透明 */
+}
+
+.sidebar h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.sidebar a, .sidebar button {
+    color: white;
+    text-decoration: none;
+    padding: 8px 10px;
+    display: block;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sidebar a:hover, .sidebar button:hover {
+    background-color: #2e4d7a;
+    padding-left: 15px;
+}
+
+.sidebar .logout-form {
+    margin: 0;
+}
+
+/* 主區域 */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: inherit;
+    max-width: 100%; /* 確保不超過 container */
+    transition: margin-left 0.3s ease;
+}
+
+/* 當側邊欄顯示時，調整主區域偏移 */
+.sidebar.active ~ .main {
+    margin-left: 280px; /* 側邊欄寬度 */
+}
+
+.main-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background: inherit;
+}
+
+header {
+    background: #1e355b;
+    color: white;
+    padding: 15px 20px;
+    margin: 20px 20px 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* 漢堡選單按鈕 - 始終顯示 */
+.menu-toggle {
+    display: block;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    margin-right: 15px;
+}
+
+.menu-toggle:hover {
+    background: #2e4d7a;
+}
+
+.menu-toggle.active .fa-bars::before {
+    content: "\f00d"; /* Font Awesome 的 'X' 圖標 */
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+}
+
+.header-left .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.header-left .welcome-text {
+    margin: 0;
+    font-size: 16px;
+}
+
+.header-left .username {
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.header-left .user-email,
+.header-left .user-role {
+    font-size: 14px;
+    opacity: 0.8;
+    margin-left: 8px;
+}
+
+.navbar {
+    margin-top: 0;
+}
+
+.navbar button {
+    margin-left: 20px;
+    padding: 5px 10px;
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.navbar button:hover {
+    background-color: #777;
+}
+
+.content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background: inherit;
+}
+
+.post {
+    background: white;
+    padding: 20px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.post:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.footer {
+    text-align: center;
+    padding: 10px;
+    color: #1e355b;
+    font-size: 14px;
+    background: inherit;
+}
+
+/* 表單樣式 */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block;
+    color: #333;
+}
+
+input, select, textarea {
+    width: 100%;
+    max-width: 500px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: white;
+    transition: border-color 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #1e355b;
+    box-shadow: 0 0 0 3px rgba(30, 53, 91, 0.1);
+}
+
+button[type="submit"] {
+    background: #1e355b;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button[type="submit"]:hover {
+    background: #2e4d7a;
+    transform: translateY(-1px);
+}
+
+/* 訊息樣式 */
+.message {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #1e355b;
+    background: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.3s ease;
+}
+
+/* 側邊欄遮罩層 */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    visibility: hidden;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 無障礙改進 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+button:focus, a:focus {
+    outline: 2px solid #2e4d7a;
+    outline-offset: 2px;
+}
+
+/* 響應式設計 - 細化斷點 */
+@media (max-width: 480px) {
+    header {
+        margin: 5px;
+        padding: 8px;
+    }
+
+    .header-left .welcome-text {
+        font-size: 12px;
+    }
+
+    .header-left .avatar {
+        width: 25px;
+        height: 25px;
+    }
+
+    .content {
+        padding: 3px;
+    }
+
+    .post {
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .container {
+        padding: 0 5px; /* 更小的內邊距 */
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        max-width: 300px;
+        transform: translateX(-100%); /* 小螢幕隱藏 */
+        visibility: hidden;
+        opacity: 0;
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
+        visibility: visible;
+        opacity: 1;
+    }
+
+    .sidebar.active ~ .main {
+        margin-left: 0; /* 小螢幕下側邊欄覆蓋，不偏移 */
+    }
+
+    .container {
+        max-width: 100%; /* 佔滿螢幕寬度 */
+        margin: 0; /* 移除外邊距 */
+        padding: 0 10px; /* 適當留白 */
+    }
+
+    header {
+        margin: 10px;
+        padding: 10px;
+    }
+
+    .header-left .avatar {
+        width: 30px;
+        height: 30px;
+    }
+
+    .header-left .welcome-text {
+        font-size: 14px;
+    }
+
+    .header-left .user-email,
+    .header-left .user-role {
+        font-size: 12px;
+    }
+
+    .navbar {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .navbar button {
+        margin-left: 10px;
+        padding: 3px 8px;
+        font-size: 14px;
+    }
+
+    .content {
+        padding: 5px;
+    }
+
+    .post {
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    input, select, textarea {
+        max-width: 100%;
+        font-size: 16px;
+    }
+
+    .footer {
+        font-size: 12px;
+        padding: 5px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .container {
+        max-width: 95vw; /* 中等螢幕使用更大比例的視口寬度 */
+        padding: 0 20px;
+    }
+
+    .sidebar {
+        width: 250px; /* 中等螢幕下縮減側邊欄寬度 */
+    }
+
+    .sidebar.active ~ .main {
+        margin-left: 250px; /* 配合縮減的側邊欄寬度 */
+    }
+
+    .content {
+        padding: 12px;
+    }
+}
+
+@media (min-width: 1025px) {
+    .container {
+        max-width: min(90vw, 1600px); /* 大螢幕下動態寬度，最大 1600px */
+        padding: 0 30px; /* 更大留白，提升視覺舒適度 */
+    }
+
+    .sidebar {
+        width: 280px;
+    }
+
+    .content {
+        padding: 15px;
+        max-width: 100%; /* 確保內容不超過容器 */
+    }
+}
+
+/* 動畫改進 */
+@media (prefers-reduced-motion: no-preference) {
+    .sidebar {
+        transition: transform 0.3s ease-in-out, visibility 0.3s ease, opacity 0.3s ease;
+    }
+}
