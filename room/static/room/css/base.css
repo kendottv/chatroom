@@ -17,16 +17,15 @@ html, body {
     display: flex;
     flex: 1;
     background: inherit;
-    justify-content: center; /* 水平置中 */
-    align-items: stretch; /* 確保子元素高度一致 */
-    width: 100%; /* 預設佔滿寬度 */
-    max-width: 90vw; /* 使用視口寬度，動態適應螢幕 */
-    max-width: min(90vw, 1600px); /* 限制最大寬度為 1600px */
-    margin: 0 auto; /* 水平置中 */
-    padding: 0 15px; /* 兩側留白，防止內容貼邊 */
+    justify-content: center;
+    align-items: stretch;
+    width: 100%;
+    max-width: min(90vw, 1600px);
+    margin: 0 auto;
+    padding: 0 15px;
 }
 
-/* 側邊欄 - 預設完全隱藏，通過漢堡選單切換 */
+/* 側邊欄樣式（保持不變） */
 .sidebar {
     width: 280px;
     background-color: #1e355b;
@@ -41,15 +40,15 @@ html, body {
     overflow-y: auto;
     transition: transform 0.3s ease-in-out, visibility 0.3s ease, opacity 0.3s ease;
     z-index: 1000;
-    transform: translateX(-100%); /* 預設隱藏 */
-    visibility: hidden; /* 確保完全隱藏 */
-    opacity: 0; /* 額外隱藏保險 */
+    transform: translateX(-100%);
+    visibility: hidden;
+    opacity: 0;
 }
 
 .sidebar.active {
-    transform: translateX(0); /* 顯示時滑入 */
-    visibility: visible; /* 顯示時可見 */
-    opacity: 1; /* 顯示時不透明 */
+    transform: translateX(0);
+    visibility: visible;
+    opacity: 1;
 }
 
 .sidebar h2 {
@@ -87,13 +86,12 @@ html, body {
     display: flex;
     flex-direction: column;
     background: inherit;
-    max-width: 100%; /* 確保不超過 container */
+    max-width: 100%;
     transition: margin-left 0.3s ease;
 }
 
-/* 當側邊欄顯示時，調整主區域偏移 */
 .sidebar.active ~ .main {
-    margin-left: 280px; /* 側邊欄寬度 */
+    margin-left: 280px;
 }
 
 .main-inner {
@@ -114,7 +112,7 @@ header {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* 漢堡選單按鈕 - 始終顯示 */
+/* 漢堡選單 */
 .menu-toggle {
     display: block;
     background: none;
@@ -133,7 +131,7 @@ header {
 }
 
 .menu-toggle.active .fa-bars::before {
-    content: "\f00d"; /* Font Awesome 的 'X' 圖標 */
+    content: "\f00d";
 }
 
 .header-left {
@@ -159,7 +157,6 @@ header {
     margin-left: 5px;
 }
 
-.header-left .user-email,
 .header-left .user-role {
     font-size: 14px;
     opacity: 0.8;
@@ -206,12 +203,42 @@ header {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.footer {
-    text-align: center;
-    padding: 10px;
-    color: #1e355b;
-    font-size: 14px;
-    background: inherit;
+/* 按鈕樣式 */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.btn-primary {
+    background: #1e355b;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2e4d7a;
+    transform: translateY(-1px);
+}
+
+button[type="submit"], .logout-btn {
+    background: #1e355b;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button[type="submit"]:hover, .logout-btn:hover {
+    background: #2e4d7a;
+    transform: translateY(-1px);
 }
 
 /* 表單樣式 */
@@ -241,21 +268,6 @@ input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: #1e355b;
     box-shadow: 0 0 0 3px rgba(30, 53, 91, 0.1);
-}
-
-button[type="submit"] {
-    background: #1e355b;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-button[type="submit"]:hover {
-    background: #2e4d7a;
-    transform: translateY(-1px);
 }
 
 /* 訊息樣式 */
@@ -308,33 +320,28 @@ button:focus, a:focus {
     outline-offset: 2px;
 }
 
-/* 響應式設計 - 細化斷點 */
+/* 響應式設計 */
 @media (max-width: 480px) {
     header {
         margin: 5px;
         padding: 8px;
     }
-
     .header-left .welcome-text {
         font-size: 12px;
     }
-
     .header-left .avatar {
         width: 25px;
         height: 25px;
     }
-
     .content {
         padding: 3px;
     }
-
     .post {
         padding: 8px;
         font-size: 12px;
     }
-
     .container {
-        padding: 0 5px; /* 更小的內邊距 */
+        padding: 0 5px;
     }
 }
 
@@ -342,91 +349,70 @@ button:focus, a:focus {
     .sidebar {
         width: 100%;
         max-width: 300px;
-        transform: translateX(-100%); /* 小螢幕隱藏 */
+        transform: translateX(-100%);
         visibility: hidden;
         opacity: 0;
     }
-    
     .sidebar.active {
         transform: translateX(0);
         visibility: visible;
         opacity: 1;
     }
-
     .sidebar.active ~ .main {
-        margin-left: 0; /* 小螢幕下側邊欄覆蓋，不偏移 */
+        margin-left: 0;
     }
-
     .container {
-        max-width: 100%; /* 佔滿螢幕寬度 */
-        margin: 0; /* 移除外邊距 */
-        padding: 0 10px; /* 適當留白 */
+        max-width: 100%;
+        margin: 0;
+        padding: 0 10px;
     }
-
     header {
         margin: 10px;
         padding: 10px;
     }
-
     .header-left .avatar {
         width: 30px;
         height: 30px;
     }
-
     .header-left .welcome-text {
         font-size: 14px;
     }
-
-    .header-left .user-email,
     .header-left .user-role {
         font-size: 12px;
     }
-
     .navbar {
         flex-direction: row;
         align-items: center;
     }
-
     .navbar button {
         margin-left: 10px;
         padding: 3px 8px;
         font-size: 14px;
     }
-
     .content {
         padding: 5px;
     }
-
     .post {
         padding: 10px;
         font-size: 14px;
     }
-
     input, select, textarea {
         max-width: 100%;
         font-size: 16px;
-    }
-
-    .footer {
-        font-size: 12px;
-        padding: 5px;
     }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
     .container {
-        max-width: 95vw; /* 中等螢幕使用更大比例的視口寬度 */
+        max-width: 95vw;
         padding: 0 20px;
     }
-
     .sidebar {
-        width: 250px; /* 中等螢幕下縮減側邊欄寬度 */
+        width: 250px;
     }
-
     .sidebar.active ~ .main {
-        margin-left: 250px; /* 配合縮減的側邊欄寬度 */
+        margin-left: 250px;
     }
-
     .content {
         padding: 12px;
     }
@@ -434,17 +420,15 @@ button:focus, a:focus {
 
 @media (min-width: 1025px) {
     .container {
-        max-width: min(90vw, 1600px); /* 大螢幕下動態寬度，最大 1600px */
-        padding: 0 30px; /* 更大留白，提升視覺舒適度 */
+        max-width: min(90vw, 1600px);
+        padding: 0 30px;
     }
-
     .sidebar {
         width: 280px;
     }
-
     .content {
         padding: 15px;
-        max-width: 100%; /* 確保內容不超過容器 */
+        max-width: 100%;
     }
 }
 
@@ -453,4 +437,38 @@ button:focus, a:focus {
     .sidebar {
         transition: transform 0.3s ease-in-out, visibility 0.3s ease, opacity 0.3s ease;
     }
+}
+
+/* 夜間模式（從 night_mode.css 引用） */
+body.dark-mode {
+    background: #222;
+}
+body.dark-mode .post {
+    background: #333;
+    color: #e0e0e0;
+}
+body.dark-mode .message {
+    background: #333;
+    color: #e0e0e0;
+}
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background: #333;
+    color: #e0e0e0;
+    border-color: #555;
+}
+body.dark-mode .btn-primary {
+    background: #2e4d7a;
+}
+body.dark-mode .btn-primary:hover {
+    background: #3e5d9a;
+}
+body.dark-mode button[type="submit"],
+body.dark-mode .logout-btn {
+    background: #2e4d7a;
+}
+body.dark-mode button[type="submit"]:hover,
+body.dark-mode .logout-btn:hover {
+    background: #3e5d9a;
 }
