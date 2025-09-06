@@ -1,48 +1,74 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block title %}學生考試歷史詳情{% endblock %}
 
 {% block content %}
     <h3>學生考試歷史詳情</h3>
     {% if detailed_records %}
         {% for record in detailed_records %}
-            <div class="post">
-                <h4>學號: {{ record.student_id }} | 考卷: {{ record.exam_title }} | 總分: {{ record.total_score }} | 完成時間: {{ record.completed_at|date:"Y-m-d H:i" }}</h4>
-                <form method="post" action="{% url 'room:student_exam_history' %}">
-                    {% csrf_token %}
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>題目標題</th>
-                                <th>題目內容</th>
-                                <th>學生答案</th>
-                                <th>原得分</th>
-                                <th>調分</th>
-                                <th>是否正確</th>
-                                <th>題型</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for answer in record.answers %}
+            <div class="post card" data-card-id="{{ record.student_id }}_{{ record.exam_title }}">
+                <div class="card-header" role="button" aria-expanded="false" aria-controls="details-{{ record.student_id }}_{{ record.exam_title }}">
+                    <h4>
+                        學號: {{ record.student_id }} | 
+                        姓名: {{ record.student_name|default:"未知姓名" }} | 
+                        考卷: {{ record.exam_title }} | 
+                        總分: {{ record.total_score }} | 
+                        完成時間: {{ record.completed_at|date:"Y-m-d H:i" }}
+                        <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                    </h4>
+                </div>
+                <div class="card-details" id="details-{{ record.student_id }}_{{ record.exam_title }}" style="display: none;">
+                    <form method="post" action="{% url 'room:student_exam_history' %}">
+                        {% csrf_token %}
+                        <table class="table table-bordered" role="grid" aria-describedby="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}">
+                            <caption id="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}" class="sr-only">
+                                {{ record.student_id }} 的 {{ record.exam_title }} 考試歷史詳情
+                            </caption>
+                            <thead>
                                 <tr>
-                                    <td>{{ answer.question_title }}</td>
-                                    <td>{{ answer.question_content|safe }}</td>
-                                    <td>{{ answer.student_answer|default:"未作答" }}</td>
-                                    <td>{{ answer.score }}</td>
-                                    <td>
-                                        <input type="number" name="score_{{ answer.question_id }}" min="0" max="{{ answer.points }}" value="{{ answer.score }}" style="width: 60px;">
-                                        <input type="hidden" name="question_id_{{ answer.question_id }}" value="{{ answer.question_id }}">
-                                    </td>
-                                    <td>{{ answer.is_correct|yesno:"是,否" }}</td>
-                                    <td>{{ answer.question_type }}</td>
+                                    <th>題目標題</th>
+                                    <th>題目內容</th>
+                                    <th>學生答案</th>
+                                    <th>原得分</th>
+                                    <th>調分</th>
+                                    <th>是否正確</th>
+                                    <th>題型</th>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <button type="submit" name="update_scores" value="{{ record.student_id }}_{{ record.exam_title }}" data-no-js="true">提交調分</button>
-                </form>
+                            </thead>
+                            <tbody>
+                                {% for answer in record.answers %}
+                                    <tr>
+                                        <td>{{ answer.question_title }}</td>
+                                        <td>{{ answer.question_content|safe }}</td>
+                                        <td>{{ answer.student_answer|default:"未作答" }}</td>
+                                        <td>{{ answer.score }}</td>
+                                        <td>
+                                            <input type="number" name="score_{{ answer.question_id }}" min="0" max="{{ answer.points }}" value="{{ answer.score }}" style="width: 60px;">
+                                            <input type="hidden" name="question_id_{{ answer.question_id }}" value="{{ answer.question_id }}">
+                                        </td>
+                                        <td>
+                                            {% if answer.is_correct %}
+                                                <i class="fas fa-check-circle" style="color: green;"></i>
+                                            {% else %}
+                                                <i class="fas fa-times-circle" style="color: red;"></i>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ answer.question_type }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <button type="submit" name="update_scores" value="{{ record.student_id }}_{{ record.exam_title }}" class="btn btn-primary" data-no-js="true">提交調分</button>
+                    </form>
+                </div>
             </div>
         {% endfor %}
     {% else %}
         <p>目前沒有考試歷史紀錄。</p>
     {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'room/js/student_exam_history.js' %}"></script>
 {% endblock %}

@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
 from django.contrib.auth import login, authenticate
 from django.contrib.auth import logout as auth_logout
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db import IntegrityError
 from django.db.models import Sum
@@ -662,6 +663,7 @@ def student_exam_history(request):
 
     # 獲取所有學生的考試歷史
     histories = StudentExamHistory.objects.all().order_by('-completed_at')
+    User = get_user_model()  # 獲取 CustomUser 模型
     detailed_records = []
 
     for history in histories:
@@ -685,8 +687,12 @@ def student_exam_history(request):
                     'question_id': question.id,
                     'points': question.points,
                 })
+            # 使用 get_full_name() 獲取學生姓名
+            student_name = history.student.get_full_name() or history.student.username
+            
             detailed_records.append({
                 'student_id': history.student.student_id,
+                'student_name': student_name,  # 使用 get_full_name() 或 username
                 'exam_title': history.exam_paper.title,
                 'total_score': history.total_score,
                 'completed_at': history.completed_at,

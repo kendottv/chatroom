@@ -25,7 +25,7 @@ html, body {
     padding: 0 15px;
 }
 
-/* 側邊欄樣式（保持不變） */
+/* 側邊欄樣式 */
 .sidebar {
     width: 280px;
     background-color: #1e355b;
@@ -203,6 +203,68 @@ header {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* 新增卡片樣式 */
+.card {
+    cursor: pointer;
+}
+
+.card-header {
+    padding: 15px;
+    background: #f9f9f9;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h4 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.card-header .toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.card-header[aria-expanded="true"] .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.card-details {
+    padding: 15px;
+    background: #fff;
+    border-top: 1px solid #ddd;
+}
+
+.card.active {
+    border: 2px solid #1e355b;
+    box-shadow: 0 4px 12px rgba(30, 53, 91, 0.2);
+}
+
+/* 表格樣式優化 */
+.table th, .table td {
+    padding: 12px 15px;
+    vertical-align: middle;
+    text-align: left;
+}
+
+.table th {
+    background-color: #1e355b;
+    color: white;
+    font-weight: bold;
+}
+
+.table tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+.table td:nth-child(2) {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* 按鈕樣式 */
 .btn {
     display: inline-block;
@@ -320,126 +382,7 @@ button:focus, a:focus {
     outline-offset: 2px;
 }
 
-/* 響應式設計 */
-@media (max-width: 480px) {
-    header {
-        margin: 5px;
-        padding: 8px;
-    }
-    .header-left .welcome-text {
-        font-size: 12px;
-    }
-    .header-left .avatar {
-        width: 25px;
-        height: 25px;
-    }
-    .content {
-        padding: 3px;
-    }
-    .post {
-        padding: 8px;
-        font-size: 12px;
-    }
-    .container {
-        padding: 0 5px;
-    }
-}
-
-@media (max-width: 768px) {
-    .sidebar {
-        width: 100%;
-        max-width: 300px;
-        transform: translateX(-100%);
-        visibility: hidden;
-        opacity: 0;
-    }
-    .sidebar.active {
-        transform: translateX(0);
-        visibility: visible;
-        opacity: 1;
-    }
-    .sidebar.active ~ .main {
-        margin-left: 0;
-    }
-    .container {
-        max-width: 100%;
-        margin: 0;
-        padding: 0 10px;
-    }
-    header {
-        margin: 10px;
-        padding: 10px;
-    }
-    .header-left .avatar {
-        width: 30px;
-        height: 30px;
-    }
-    .header-left .welcome-text {
-        font-size: 14px;
-    }
-    .header-left .user-role {
-        font-size: 12px;
-    }
-    .navbar {
-        flex-direction: row;
-        align-items: center;
-    }
-    .navbar button {
-        margin-left: 10px;
-        padding: 3px 8px;
-        font-size: 14px;
-    }
-    .content {
-        padding: 5px;
-    }
-    .post {
-        padding: 10px;
-        font-size: 14px;
-    }
-    input, select, textarea {
-        max-width: 100%;
-        font-size: 16px;
-    }
-}
-
-@media (min-width: 769px) and (max-width: 1024px) {
-    .container {
-        max-width: 95vw;
-        padding: 0 20px;
-    }
-    .sidebar {
-        width: 250px;
-    }
-    .sidebar.active ~ .main {
-        margin-left: 250px;
-    }
-    .content {
-        padding: 12px;
-    }
-}
-
-@media (min-width: 1025px) {
-    .container {
-        max-width: min(90vw, 1600px);
-        padding: 0 30px;
-    }
-    .sidebar {
-        width: 280px;
-    }
-    .content {
-        padding: 15px;
-        max-width: 100%;
-    }
-}
-
-/* 動畫改進 */
-@media (prefers-reduced-motion: no-preference) {
-    .sidebar {
-        transition: transform 0.3s ease-in-out, visibility 0.3s ease, opacity 0.3s ease;
-    }
-}
-
-/* 夜間模式（從 night_mode.css 引用） */
+/* 夜間模式 */
 body.dark-mode {
     background: #222;
 }
@@ -471,4 +414,14 @@ body.dark-mode .logout-btn {
 body.dark-mode button[type="submit"]:hover,
 body.dark-mode .logout-btn:hover {
     background: #3e5d9a;
+}
+body.dark-mode .card-header {
+    background: #2e4d7a;
+    color: #e0e0e0;
+}
+body.dark-mode .table th {
+    background-color: #2e4d7a;
+}
+body.dark-mode .table tbody tr:hover {
+    background-color: #444;
 }
