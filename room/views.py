@@ -21,6 +21,7 @@ import traceback
 from gemini_api.gemini import GeminiAPIWrapper
 from asgiref.sync import sync_to_async
 from django.template.response import TemplateResponse
+import logging
 
 def home(request):
     return render(request, 'home.html')  # 首頁
@@ -801,7 +802,6 @@ def student_exam_history(request):
             student_exam_key = request.POST['update_scores'].split('_')
             student_id = student_exam_key[0]
             exam_title = '_'.join(student_exam_key[1:])
-            logger.debug(f"Processing update_scores: student_id={student_id}, exam_title={exam_title}")
             
             history = StudentExamHistory.objects.filter(
                 student__student_id=student_id,
@@ -809,7 +809,6 @@ def student_exam_history(request):
             ).first()
 
             if not history:
-                logger.error(f"No history found for student_id={student_id}, exam_title={exam_title}")
                 messages.error(request, "找不到對應的考試歷史紀錄。")
                 return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
@@ -819,7 +818,6 @@ def student_exam_history(request):
             ).first()
 
             if not exam_record:
-                logger.error(f"No exam record found for student_id={student_id}, exam_title={exam_title}")
                 messages.error(request, "找不到對應的考試紀錄。")
                 return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
 
@@ -835,12 +833,9 @@ def student_exam_history(request):
                             answer.is_correct = (new_score == max_score)  # 滿分視為正確
                             answer.save()
                             total_score += new_score
-                            logger.debug(f"Updated score for question_id={answer.exam_question.id}: {new_score}")
                         else:
-                            logger.warning(f"Score {new_score} for question_id={answer.exam_question.id} out of range (0-{max_score})")
                             messages.warning(request, f"題目 ID {answer.exam_question.id} 的調分 {new_score} 超出範圍 (0-{max_score})，未更新。")
                     except ValueError:
-                        logger.warning(f"Invalid score for question_id={answer.exam_question.id}: {new_score}")
                         messages.warning(request, f"題目 ID {answer.exam_question.id} 的調分無效，需為數字。")
 
             # 更新總分
@@ -848,15 +843,12 @@ def student_exam_history(request):
             history.save()
             exam_record.score = total_score
             exam_record.save()
-            logger.info(f"Successfully updated scores for student_id={student_id}, exam_title={exam_title}, total_score={total_score}")
             messages.success(request, f"已成功更新 {student_id} 的 '{exam_title}' 考試成績，總分為 {total_score}。")
             return redirect('room:student_exam_history')
 
         except (ValueError, CustomUser.DoesNotExist, ExamPaper.DoesNotExist) as e:
-            logger.error(f"Error updating scores: {str(e)}")
             messages.error(request, f"更新分數失敗，無效的學生或考卷：{str(e)}")
         except Exception as e:
-            logger.error(f"Unexpected error updating scores: {str(e)}")
             messages.error(request, f"更新分數時發生錯誤：{str(e)}")
 
     return render(request, 'student_exam_history.html', {'detailed_records': detailed_records})
