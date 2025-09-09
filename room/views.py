@@ -33,13 +33,12 @@ def exam(request):
     current_time = timezone.now()
     
     if request.method == 'POST':
-        # 檢查是否為 JSON 請求（處理單題提交）
+        # 保持原有的 POST 處理邏輯不變
         if request.content_type == 'application/json':
             try:
                 data = json.loads(request.body)
                 action = data.get('action')
                 
-                # 處理單題提交
                 if action == 'submit_answer':
                     paper_id = data.get('paper_id')
                     question_id = data.get('question_id')
@@ -52,21 +51,18 @@ def exam(request):
                         exam_paper = ExamPaper.objects.get(id=paper_id)
                         question = exam_paper.questions.get(id=question_id)
                         
-                        # 檢查考試時間
                         if current_time < exam_paper.start_time or current_time > exam_paper.end_time:
                             return JsonResponse({
                                 'status': 'error', 
                                 'message': '考試時間已過或尚未開始'
                             }, status=403)
                         
-                        # 獲取或創建考試記錄
                         exam_record, created = ExamRecord.objects.get_or_create(
                             student=request.user,
                             exam_paper=exam_paper,
                             defaults={'submitted_at': current_time, 'is_completed': False}
                         )
                         
-                        # 計算分數（使用與原本相同的邏輯）
                         is_correct = False
                         score = 0
                         
@@ -93,7 +89,6 @@ def exam(request):
                             
                             score = question.points if is_correct else 0
                         
-                        # 保存答案
                         ExamAnswer.objects.update_or_create(
                             exam_record=exam_record,
                             exam_question=question,
@@ -104,7 +99,6 @@ def exam(request):
                             }
                         )
                         
-                        # 記錄日誌
                         InteractionLog.objects.create(
                             user=request.user,
                             question=f"題目: {question.title or question.content[:50]}..., 回答: {answer if answer is not None else '未作答'}",
@@ -131,7 +125,7 @@ def exam(request):
             except json.JSONDecodeError:
                 return JsonResponse({'status': 'error', 'message': '無效的JSON格式'}, status=400)
 
-        # 處理 AI 提問（保持原邏輯不變）
+        #AI問答區
         if request.POST.get('action') == 'ai_question':
             try:
                 prompt = request.POST.get('prompt')
@@ -149,7 +143,6 @@ def exam(request):
                         if remaining <= 0:
                             return JsonResponse({'response': '已達 AI 提問上限！', 'remaining': 0}, status=403)
                         
-                        # 這裡替換成您的實際 AI 呼叫邏輯，例如使用 Grok 或 OpenAI API
                         response = "這是 AI 的模擬回應..."  # 請替換
                         
                         remaining -= 1
@@ -172,7 +165,6 @@ def exam(request):
             except Exception as e:
                 return JsonResponse({'error': f'發生錯誤：{str(e)}'}, status=500)
         
-        # 處理結束考試
         if 'end_exam' in request.POST and request.user.is_staff:
             paper_id = request.POST.get('paper_id')
             if paper_id:
@@ -187,7 +179,6 @@ def exam(request):
             else:
                 messages.error(request, "未提供考卷 ID。")
         
-        # 處理考試提交
         elif 'paper_id' in request.POST:
             paper_id = request.POST.get('paper_id')
             if paper_id:
@@ -294,17 +285,38 @@ def exam(request):
                     messages.error(request, f"提交過程中發生錯誤：{str(e)}")
                     print(f"Exception in exam submission: {e}")
 
-    # GET 請求的處理（保持完全不變）
-    all_papers = ExamPaper.objects.all().prefetch_related('questions')
+    # 修改 GET 請求處理邏輯
+    selected_paper_id = request.session.get('selected_exam_paper_id')
     exam_records = ExamRecord.objects.filter(student=request.user).values('exam_paper_id', 'is_completed')
     exam_records_dict = {record['exam_paper_id']: {'is_completed': record['is_completed']} for record in exam_records}
 
-    available_papers = [
-        paper for paper in all_papers
-        if paper.publish_time <= current_time and paper.end_time > current_time and
-        not exam_records_dict.get(paper.id, {}).get('is_completed', False)
-    ]
-    
+    if selected_paper_id:
+        try:
+            # 僅獲取選定的考卷
+            selected_paper = ExamPaper.objects.prefetch_related('questions').get(
+                id=selected_paper_id,
+                publish_time__lte=current_time,
+                end_time__gt=current_time
+            )
+            if not exam_records_dict.get(int(selected_paper_id), {}).get('is_completed', False):
+                available_papers = [selected_paper]
+            else:
+                available_papers = []
+                messages.info(request, "您已完成此考卷，請選擇其他考卷。")
+        except ExamPaper.DoesNotExist:
+            available_papers = []
+            messages.error(request, "選定的考卷不存在或不在進行中。")
+            # 清除無效的 session 數據
+            request.session.pop('selected_exam_paper_id', None)
+    else:
+        # 如果沒有選定考卷，顯示所有可用的考卷
+        all_papers = ExamPaper.objects.all().prefetch_related('questions')
+        available_papers = [
+            paper for paper in all_papers
+            if paper.publish_time <= current_time and paper.end_time > current_time and
+            not exam_records_dict.get(paper.id, {}).get('is_completed', False)
+        ]
+
     # 計算 AI 提問次數並初始化 session
     for paper in available_papers:
         paper.ai_total_limit = sum(q.ai_limit for q in paper.questions.all())
