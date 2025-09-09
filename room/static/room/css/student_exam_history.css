@@ -1,0 +1,100 @@
+.card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.card.active {
+    border-color: #1e355b;
+    box-shadow: 0 4px 12px rgba(30, 53, 91, 0.2);
+}
+
+.card-header {
+    background: #f9f9f9;
+    padding: 15px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.card-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.card-header[aria-expanded="true"] .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.card-details {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.card-details[aria-hidden="false"] {
+    padding: 15px;
+}
+
+.score-input {
+    width: 60px;
+}
+
+.btn-primary {
+    background: #1e355b;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: #2e4d7a;
+}
+
+.btn-secondary {
+    background: #6c757d;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+/* 響應式設計 */
+@media (max-width: 576px) {
+    .card-header h4 {
+        font-size: 0.9rem;
+    }
+
+    .card-header {
+        padding: 10px;
+    }
+
+    .card-body {
+        padding: 10px;
+    }
+
+    .score-input {
+        width: 80px;
+    }
+
+    .table {
+        font-size: 0.85rem;
+    }
+
+    .btn-primary, .btn-secondary {
+        width: 100%;
+        padding: 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        overflow-x: auto;
+    }
+}

@@ -3,69 +3,90 @@
 
 {% block title %}學生考試歷史詳情{% endblock %}
 
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'room/css/student_exam_history.css' %}">
+{% endblock %}
+
 {% block content %}
-    <h3>學生考試歷史詳情</h3>
+    <h3 class="mb-4">學生考試歷史詳情</h3>
+    {% if messages %}
+        <div class="messages mb-3" aria-live="polite">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     {% if detailed_records %}
         {% for record in detailed_records %}
             <div class="post card" data-card-id="{{ record.student_id }}_{{ record.exam_title }}">
-                <div class="card-header" role="button" aria-expanded="false" aria-controls="details-{{ record.student_id }}_{{ record.exam_title }}">
-                    <h4>
-                        學號: {{ record.student_id }} | 
-                        姓名: {{ record.student_name|default:"未知姓名" }} | 
-                        考卷: {{ record.exam_title }} | 
-                        總分: {{ record.total_score }} | 
-                        完成時間: {{ record.completed_at|date:"Y-m-d H:i" }}
+                <div class="card-header" role="button" tabindex="0" aria-expanded="false" aria-controls="details-{{ record.student_id }}_{{ record.exam_title }}">
+                    <h4 class="mb-0 d-flex justify-content-between align-items-center">
+                        <span>
+                            學號: {{ record.student_id }} | 
+                            姓名: {{ record.student_name|default:"未知姓名" }} | 
+                            考卷: {{ record.exam_title }} | 
+                            總分: {{ record.total_score }} | 
+                            完成時間: {{ record.completed_at|date:"Y-m-d H:i" }}
+                        </span>
                         <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span>
                     </h4>
                 </div>
-                <div class="card-details" id="details-{{ record.student_id }}_{{ record.exam_title }}" style="display: none;">
-                    <form method="post" action="{% url 'room:student_exam_history' %}">
-                        {% csrf_token %}
-                        <table class="table table-bordered" role="grid" aria-describedby="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}">
-                            <caption id="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}" class="sr-only">
-                                {{ record.student_id }} 的 {{ record.exam_title }} 考試歷史詳情
-                            </caption>
-                            <thead>
-                                <tr>
-                                    <th>題目標題</th>
-                                    <th>題目內容</th>
-                                    <th>學生答案</th>
-                                    <th>原得分</th>
-                                    <th>調分</th>
-                                    <th>是否正確</th>
-                                    <th>題型</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for answer in record.answers %}
-                                    <tr>
-                                        <td>{{ answer.question_title }}</td>
-                                        <td>{{ answer.question_content|safe }}</td>
-                                        <td>{{ answer.student_answer|default:"未作答" }}</td>
-                                        <td>{{ answer.score }}</td>
-                                        <td>
-                                            <input type="number" name="score_{{ answer.question_id }}" min="0" max="{{ answer.points }}" value="{{ answer.score }}" style="width: 60px;">
-                                            <input type="hidden" name="question_id_{{ answer.question_id }}" value="{{ answer.question_id }}">
-                                        </td>
-                                        <td>
-                                            {% if answer.is_correct %}
-                                                <i class="fas fa-check-circle" style="color: green;"></i>
-                                            {% else %}
-                                                <i class="fas fa-times-circle" style="color: red;"></i>
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ answer.question_type }}</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                        <button type="submit" name="update_scores" value="{{ record.student_id }}_{{ record.exam_title }}" class="btn btn-primary" data-no-js="true">提交調分</button>
-                    </form>
+                <div class="card-details" id="details-{{ record.student_id }}_{{ record.exam_title }}" style="max-height: 0; opacity: 0;" aria-hidden="true">
+                    <div class="card-body">
+                        <form method="post" action="{% url 'room:student_exam_history' %}">
+                            {% csrf_token %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered" role="grid" aria-describedby="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}">
+                                    <caption id="exam_history_desc_{{ record.student_id }}_{{ record.exam_title }}" class="sr-only">
+                                        {{ record.student_id }} 的 {{ record.exam_title }} 考試歷史詳情
+                                    </caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">題目標題</th>
+                                            <th scope="col">題目內容</th>
+                                            <th scope="col">學生答案</th>
+                                            <th scope="col">原得分</th>
+                                            <th scope="col">調分</th>
+                                            <th scope="col">是否正確</th>
+                                            <th scope="col">題型</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for answer in record.answers %}
+                                            <tr>
+                                                <td>{{ answer.question_title|default:"無標題" }}</td>
+                                                <td>{{ answer.question_content|safe|default:"無內容" }}</td>
+                                                <td>{{ answer.student_answer|default:"未作答" }}</td>
+                                                <td>{{ answer.score }}</td>
+                                                <td>
+                                                    <input type="number" name="score_{{ answer.question_id }}" min="0" max="{{ answer.points }}" value="{{ answer.score }}" class="form-control score-input">
+                                                    <input type="hidden" name="question_id_{{ answer.question_id }}" value="{{ answer.question_id }}">
+                                                </td>
+                                                <td>
+                                                    {% if answer.is_correct %}
+                                                        <i class="fas fa-check-circle text-success" aria-label="正確"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-times-circle text-danger" aria-label="錯誤"></i>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ answer.question_type }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="submit" name="update_scores" value="{{ record.student_id }}_{{ record.exam_title }}" class="btn btn-primary mt-2" data-no-js="true">提交調分</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         {% endfor %}
     {% else %}
-        <p>目前沒有考試歷史紀錄。</p>
+        <div class="alert alert-info">
+            <p>目前沒有考試歷史紀錄。</p>
+            <a href="{% url 'room:home' %}" class="btn btn-secondary">返回首頁</a>
+        </div>
     {% endif %}
 {% endblock %}
 
