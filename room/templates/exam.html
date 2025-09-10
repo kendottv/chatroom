@@ -69,8 +69,6 @@
                 </div>
             {% endif %}
 
-            <!-- 除錯資訊 -->
-            <p class="text-muted">Debug: exam_papers count = {{ exam_papers|length }}</p>
             {% if exam_papers %}
                 {% for paper in exam_papers %}
                     <p class="text-muted">Debug: Paper {{ paper.title }} has {{ paper.questions.count }} questions, AI Limit: {{ paper.ai_total_limit }}</p>
